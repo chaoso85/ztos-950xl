@@ -4,7 +4,11 @@ Bu liste, "sonra bakarız" diye ertelenen, varsayılan ya da yarım kalan her ş
 Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 
 ## 1. Cihazı açmayı engelleyenler
-- [ ] (!) **USB gadget (rescue/SSH):** `usb3` + Lattice UC120'yi etkinleştirip ikinci derleme. Bu olmadan içeri girilemez.
+- [ ] (!) **USB gadget (rescue/SSH):** DT tarafı hazır, çekirdek derleniyor (`usb3`, UC120, SMBCHG açık; DWC3 yalnızca gadget; configfs ACM/ECM/NCM/RNDIS). **Donanımda doğrulanmadı.** Kalanlar:
+  - [ ] Gerçek HS/SS PHY sürücüsü yok: şimdilik UEFI'nin ilklediği PHY'ye güveniliyor, `usb-nop-xceiv` yalnızca l24'ü açık tutuyor (l6 always-on). Çalışmazsa downstream `qcom,usb-hsphy` init değerleri (0x00D191A4 / 0x00D1D9A4) ile PHY sürücüsü yazılacak.
+  - [ ] UC120 bit akışı runtime'da `request_firmware` ile isteniyor; telefondan çıkarma betiği henüz yok.
+  - [ ] initramfs içinde gadget (configfs) + SSH/ACM kurtarma betiği yazılacak.
+  - [ ] Host/OTG modu kapalı (gadget-only); gerekirse dual-role + usb-role-switch.
 - [ ] (!) **SD karttan açılış:** UEFI'nin SD'den okuyabildiği doğrulanmadı. Bilinen çalışan yol: eMMC ESP üzerinde GRUB, `\EFI\Microsoft\Boot\bootmgfw.efi` olarak kopyalı (fallback yolu çalışmıyor).
 - [ ] (!) **Tam eMMC yedeği:** henüz alınmadı; ilk denemeden önce şart.
 - [ ] **RPM regülatör takılması:** topluluk mainline 6.16'da framebuffer'dan sonra bu noktada takıldığını bildirdi; fork'ta düzelip düzelmediği bilinmiyor.
