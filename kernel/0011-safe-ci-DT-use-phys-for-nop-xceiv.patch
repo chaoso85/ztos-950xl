@@ -1,0 +1,26 @@
+From a15ebf444d48b3129d50d8f1266cc064bf0a54d6 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sat, 7 Nov 2026 20:47:57 +0000
+Subject: [PATCH] safe-ci DT: use phys for nop xceiv
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ .../dts/qcom/msm8994-msft-lumia-octagon-cityman-safe-ci.dts     | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe-ci.dts b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe-ci.dts
+index 4cb809c3ccb..87a0a04a8da 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe-ci.dts
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe-ci.dts
+@@ -29,7 +29,7 @@ usb_hs: usb@f9a55000 {
+ 			reset-names = "core";
+ 			dr_mode = "peripheral";
+ 			phy_type = "ulpi";
+-			usb-phy = <&hs_xceiv>;
++			phys = <&hs_xceiv>;
+ 			ahb-burst-config = <0>;
+ 			status = "okay";
+ 		};
+-- 
+2.43.0
+
