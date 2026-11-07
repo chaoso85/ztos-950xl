@@ -1,7 +1,7 @@
 From 85a9a47d508c7f95dcf6ff0230835113b84f18c8 Mon Sep 17 00:00:00 2001
 From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
 Date: Sat, 7 Nov 2026 17:27:30 +0000
-Subject: [PATCH] arm64: dts: qcom: octagon: hold USB HS PHY supplies via nop
+Subject: [PATCH 2/2] arm64: dts: qcom: octagon: hold USB HS PHY supplies via nop
  xceiv, gadget-only DWC3
 
 ---
