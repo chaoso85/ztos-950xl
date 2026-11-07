@@ -33,8 +33,10 @@ if [ -n "$SDLOG" ]; then
     mkdir -p "$SDLOG/pstore-$N"; cp /sys/fs/pstore/* "$SDLOG/pstore-$N/" 2>/dev/null
     echo "[rescue] saved pstore of previous boot to $SDLOG/pstore-$N"
   fi
-  dmesg > "$SDLOG/dmesg-boot.txt"; sync
-  ( while true; do dmesg > "$SDLOG/dmesg-boot.txt"; sync; sleep 5; done ) &
+  [ -f "$SDLOG/dmesg-boot.txt" ] && mv -f "$SDLOG/dmesg-boot.txt" "$SDLOG/dmesg-prev.txt"
+  # append-only stream of the kernel log (no truncate/rewrite), flushed every 2 s
+  ( cat /proc/kmsg >> "$SDLOG/dmesg-boot.txt" ) &
+  ( while true; do sync; sleep 2; done ) &
 fi
 
 log() { echo "[rescue] $*" | tee -a /dev/kmsg >/dev/null 2>&1; echo "[rescue] $*"; }
@@ -80,7 +82,7 @@ fi
 if [ -x /sbin/dropbear ]; then
   mkdir -p /etc/dropbear /root/.ssh; chmod 700 /root/.ssh
   [ -f /etc/dropbear/dropbear_ed25519_host_key ] || /sbin/dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key >/dev/null 2>&1
-  /sbin/dropbear -s -R -p 192.168.77.2:22 && log "dropbear listening on 192.168.77.2:22 (key auth only)"
+  /sbin/dropbear -p 192.168.77.2:22 && log "dropbear listening on 192.168.77.2:22 (key auth only)"
 else
   log "no dropbear in image: use the ACM serial shell"
 fi
@@ -89,4 +91,26 @@ fi
 dmesg > /run/dmesg.txt
 
 log "rescue ready"
+mount -t debugfs none /sys/kernel/debug 2>/dev/null
+(
+  prev=""
+  while true; do
+    st="udc=$(cat /sys/class/udc/*/state 2>/dev/null)"
+    for ps in /sys/class/power_supply/*; do
+      n=$(basename $ps); o=$(cat $ps/online 2>/dev/null); [ -n "$o" ] && st="$st $n=$o"
+    done
+    d=$(cat /sys/kernel/debug/usb/*/link_state 2>/dev/null | head -1)
+    [ -n "$d" ] && st="$st link=$d"
+    if [ "$st" != "$prev" ]; then
+      log "usbstat: $st"; prev="$st"
+      if [ -d /sys/bus/platform/drivers/dwc3/f9200000.usb ]; then
+      log "dwc3 GCTL/GSTS/GUSB2PHYCFG/DCFG/DCTL/DEVTEN/DSTS: $(/sbin/mmio 0xf920c110 0xf920c118 0xf920c200 0xf920c700 0xf920c704 0xf920c708 0xf920c70c 2>&1)"
+      log "qscratch ver/gencfg/hsphyctrl/override/common: $(/sbin/mmio 0xf92f8800 0xf92f8808 0xf92f8810 0xf92f8814 0xf92f88ec 2>&1)"
+      fi
+      case "$(ls /sys/class/udc 2>/dev/null)" in ci_hdrc*) log "chipidea USBCMD/USBSTS/ULPIVP/PORTSC/OTGSC/USBMODE: $(/sbin/mmio 0xf9a55140 0xf9a55144 0xf9a55170 0xf9a55184 0xf9a551a4 0xf9a551a8 2>&1)";; esac
+      for f in /sys/kernel/debug/usb/*/regdump; do [ -r $f ] && grep -E 'DCTL|DSTS|GUSB2PHYCFG|GCTL' $f | while read l; do log "reg $l"; done; done
+    fi
+    sleep 1
+  done
+) &
 while true; do sleep 3600; done
