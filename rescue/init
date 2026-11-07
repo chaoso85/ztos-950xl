@@ -8,6 +8,29 @@ mkdir -p /dev/pts /sys/kernel/config; mount -t devpts devpts /dev/pts
 mount -t configfs none /sys/kernel/config
 mount -t tmpfs tmpfs /run
 
+# --- persist logs on the SD card (FAT32 ZTOS partition) ---
+mount -t pstore pstore /sys/fs/pstore 2>/dev/null
+SDLOG=""
+for d in /dev/mmcblk1p1 /dev/mmcblk1p2 /dev/mmcblk2p1 /dev/mmcblk0p1; do
+  [ -b "$d" ] || continue
+  mkdir -p /mnt/sd
+  if mount -t vfat -o rw,sync,flush "$d" /mnt/sd 2>/dev/null; then
+    if [ -f /mnt/sd/ztos/grub.cfg ]; then SDLOG=/mnt/sd/ztos/logs; break; fi
+    umount /mnt/sd 2>/dev/null
+  fi
+done
+if [ -n "$SDLOG" ]; then
+  N=$(date +%s 2>/dev/null || echo 0)
+  mkdir -p "$SDLOG"
+  # kernel messages from the PREVIOUS boot that survived the reset (ramoops)
+  if ls /sys/fs/pstore/* >/dev/null 2>&1; then
+    mkdir -p "$SDLOG/pstore-$N"; cp /sys/fs/pstore/* "$SDLOG/pstore-$N/" 2>/dev/null
+    echo "[rescue] saved pstore of previous boot to $SDLOG/pstore-$N"
+  fi
+  dmesg > "$SDLOG/dmesg-boot.txt"; sync
+  ( while true; do dmesg > "$SDLOG/dmesg-boot.txt"; sync; sleep 5; done ) &
+fi
+
 log() { echo "[rescue] $*" | tee -a /dev/kmsg >/dev/null 2>&1; echo "[rescue] $*"; }
 log "init start, kernel $(uname -r)"
 
