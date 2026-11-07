@@ -81,7 +81,6 @@ fi
 
 # --- local debug dump to the framebuffer console ---
 dmesg > /run/dmesg.txt
-( while true; do sleep 30; dmesg | tail -n 5 > /dev/kmsg 2>/dev/null; done ) &
 
 log "rescue ready"
 while true; do sleep 3600; done
