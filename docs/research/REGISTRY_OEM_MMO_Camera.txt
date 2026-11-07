@@ -1,0 +1,52 @@
+# HKLM\SOFTWARE\OEM\MMO\Camera (FFU SOFTWARE hive)
+
+[Barc]
+  BarcVersion = 100.10
+  IsEnabled = 1
+  MaxBufferAmount = 15
+[FFC]
+  [Caps]
+    MaxIso = 1600
+  [Resolution]
+    (default) = 
+    PreviewResolution = 4
+    StillResolution = 3
+    VideoResolution = 3
+  [Rotation]
+    (default) = 
+    FlipMirror = 1
+[RFC]
+  [CameraI2C]
+    (default) = 
+    I2cFreqKhz = 1000
+  [Caps]
+    FlashModes = 59
+    MaxDigiZoom = 262144
+    MaxET = 4000000
+    MaxIso = 3200
+    MinET = 60
+    MinIso = 50
+    OisCapability = 1
+    VideoLightModes = 2
+  [Resolution]
+    DngCapture_NeededBufferSize = 26508288
+    HfrVideoProfile = 1
+    HiddenStillResolution = 4992x3744,5344x3008
+    HighResCapture_Resolution_16_9 = 3072x1728
+    HighResCapture_Resolution_4_3 = 2592x1936
+    HighResCapture_SupportedResolutions = 5
+    PreviewResolution = 4
+    StillResolution = 6
+    VideoResolution = 4
+  [Rotation]
+    (default) = 
+    FlipMirror = 1
+[RFF]
+  (default) = 
+  CustomSetting1 = 38
+[tertiary]
+  cropWidthLeft = 300
+[TFF]
+  (default) = 
+  Module = 7
+  PMICType = 1

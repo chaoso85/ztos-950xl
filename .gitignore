@@ -1,0 +1,8 @@
+*.img
+*.ffu
+*.mbn
+*.bin
+*.dcc
+*.sys
+out/
+build/
