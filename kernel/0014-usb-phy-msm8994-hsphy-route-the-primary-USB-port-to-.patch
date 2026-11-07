@@ -1,0 +1,83 @@
+From 81b525ef9f72821cda17e4de58bc07ed1387b1eb Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sat, 7 Nov 2026 21:22:20 +0000
+Subject: [PATCH] usb: phy: msm8994 hsphy: route the primary USB port to DWC3
+ via TCSR 0xfd4ab000
+
+What was wrong: nothing ever switched the Type-C data lines over to the
+DWC3 controller. UEFI leaves the primary port connected to the legacy
+ChipIdea (QUSB2) controller. With DWC3 running (RUN_STOP set, link in
+suspend) but its PHY not connected to the connector, the host never saw a
+pull-up or a reset, so the gadget stayed "not attached" no matter what PHY
+tuning or reset was used.
+
+Source: Android4Lumia950/android_kernel_mmo_msm8994 (lineage-18.1-talkman),
+drivers/usb/dwc3/dwc3-msm.c, probe():
+
+    /* Enable USB3 on the primary USB port. */
+    writel_relaxed(0x1, tcsr);
+
+with the register given as the second reg of the usb3 node in
+arch/arm64/boot/dts/qcom/msm8994.dtsi: reg = <0xf9200000 0xfc000>,
+<0xfd4ab000 0x4>. We do the same write in the HS PHY driver probe, which
+runs before the DWC3 core probes (the core defers until the PHY exists),
+using an optional "tcsr" reg.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ arch/arm64/boot/dts/qcom/msm8994.dtsi |  4 ++--
+ drivers/usb/phy/phy-msm8994-hsusb.c   | 16 ++++++++++++++++
+ 2 files changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994.dtsi b/arch/arm64/boot/dts/qcom/msm8994.dtsi
+index 4c5c099c804..fdbb6d69ef1 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8994.dtsi
+@@ -478,8 +478,8 @@ usb3_dwc3: usb@f9200000 {
+ 
+ 		usb3_hsphy: phy@f9b3a000 {
+ 			compatible = "qcom,msm8994-usb-hsphy";
+-			reg = <0xf9b3a000 0x110>, <0xf92f8800 0x400>;
+-			reg-names = "csr", "qscratch";
++			reg = <0xf9b3a000 0x110>, <0xf92f8800 0x400>, <0xfd4ab000 0x4>;
++			reg-names = "csr", "qscratch", "tcsr";
+ 			clocks = <&gcc GCC_USB2_HS_PHY_SLEEP_CLK>;
+ 			clock-names = "sleep";
+ 			resets = <&gcc USB2_HS_PHY_SLEEP_ARES>;
+diff --git a/drivers/usb/phy/phy-msm8994-hsusb.c b/drivers/usb/phy/phy-msm8994-hsusb.c
+index 5697b6ba9f7..4be637e72ab 100644
+--- a/drivers/usb/phy/phy-msm8994-hsusb.c
++++ b/drivers/usb/phy/phy-msm8994-hsusb.c
+@@ -43,6 +43,7 @@
+ struct msm8994_hsphy {
+ 	struct usb_phy phy;
+ 	void __iomem *qscratch;
++	void __iomem *tcsr;
+ 	struct clk *sleep_clk;
+ 	struct reset_control *sleep_rst;
+ 	struct regulator *vdda18;
+@@ -109,6 +110,21 @@ static int msm8994_hsphy_probe(struct platform_device *pdev)
+ 	if (!p)
+ 		return -ENOMEM;
+ 
++	/*
++	 * TCSR USB3 select: the primary Type-C port is routed to the legacy
++	 * (ChipIdea) controller by default. Writing 1 routes it to DWC3 (this is
++	 * what the downstream dwc3-msm does: "Enable USB3 on the primary USB port").
++	 */
++	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "tcsr");
++	if (res) {
++		p->tcsr = devm_ioremap(dev, res->start, resource_size(res));
++		if (p->tcsr) {
++			writel(1, p->tcsr);
++			readl(p->tcsr);
++			dev_info(dev, "TCSR USB3 select set\n");
++		}
++	}
++
+ 	/* QSCRATCH is shared with the DWC3 glue: map without claiming it. */
+ 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "qscratch");
+ 	if (!res)
+-- 
+2.43.0
+
