@@ -6,3 +6,8 @@
 *.sys
 out/
 build/
+
+rescue/keys/
+*.cpio.gz
+*.pem
+rescue_ed25519*
