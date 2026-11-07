@@ -1,0 +1,49 @@
+From c52cb4b584191c98a63abaf9574acb7871c2d166 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sat, 7 Nov 2026 19:06:32 +0000
+Subject: [PATCH] arm64: dts: qcom: add cityman-safe debug DTB (no
+ display/GPU/camera)
+
+---
+ arch/arm64/boot/dts/qcom/Makefile                |  1 +
+ .../msm8994-msft-lumia-octagon-cityman-safe.dts  | 16 ++++++++++++++++
+ 2 files changed, 17 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe.dts
+
+diff --git a/arch/arm64/boot/dts/qcom/Makefile b/arch/arm64/boot/dts/qcom/Makefile
+index 1c86e7e98f5..d55af152754 100644
+--- a/arch/arm64/boot/dts/qcom/Makefile
++++ b/arch/arm64/boot/dts/qcom/Makefile
+@@ -135,6 +135,7 @@ dtb-$(CONFIG_ARCH_QCOM)	+= msm8992-msft-lumia-octagon-talkman.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= msm8992-xiaomi-libra.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= msm8994-huawei-angler-rev-101.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= msm8994-msft-lumia-octagon-cityman.dtb
++dtb-$(CONFIG_ARCH_QCOM)	+= msm8994-msft-lumia-octagon-cityman-safe.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= msm8994-sony-xperia-kitakami-ivy.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= msm8994-sony-xperia-kitakami-karin.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= msm8994-sony-xperia-kitakami-satsuki.dtb
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe.dts b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe.dts
+new file mode 100644
+index 00000000000..09cb5de75c3
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe.dts
+@@ -0,0 +1,16 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Debug variant: display (MDSS/MDP/DSI), GPU, camera and their IOMMUs are
++ * disabled so the kernel reaches userspace (rescue initramfs) on the
++ * UEFI framebuffer. Used to read logs when the full DT hangs.
++ */
++#include "msm8994-msft-lumia-octagon-cityman.dts"
++
++&mdss { status = "disabled"; };
++&mdp_iommu { status = "disabled"; };
++&gpu { status = "disabled"; };
++&gpu_iommu { status = "disabled"; };
++&venus_iommu { status = "disabled"; };
++&vfe_iommu { status = "disabled"; };
++&camss { status = "disabled"; };
++&cci { status = "disabled"; };
+-- 
+2.43.0
+
