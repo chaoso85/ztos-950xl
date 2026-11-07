@@ -11,13 +11,19 @@ mount -t tmpfs tmpfs /run
 # --- persist logs on the SD card (FAT32 ZTOS partition) ---
 mount -t pstore pstore /sys/fs/pstore 2>/dev/null
 SDLOG=""
-for d in /dev/mmcblk1p1 /dev/mmcblk1p2 /dev/mmcblk2p1 /dev/mmcblk0p1; do
-  [ -b "$d" ] || continue
-  mkdir -p /mnt/sd
-  if mount -t vfat -o rw,sync,flush "$d" /mnt/sd 2>/dev/null; then
-    if [ -f /mnt/sd/ztos/grub.cfg ]; then SDLOG=/mnt/sd/ztos/logs; break; fi
-    umount /mnt/sd 2>/dev/null
-  fi
+# Only ever touch the SD card (mmc device type "SD"); never the phone's eMMC.
+for blk in /sys/block/mmcblk[0-9]*; do
+  [ -e "$blk/device/type" ] || continue
+  [ "$(cat $blk/device/type 2>/dev/null)" = "SD" ] || continue
+  n=$(basename $blk)
+  for d in /dev/${n}p1 /dev/${n}p2; do
+    [ -b "$d" ] || continue
+    mkdir -p /mnt/sd
+    if mount -t vfat -o rw,sync,flush "$d" /mnt/sd 2>/dev/null; then
+      if [ -f /mnt/sd/ztos/grub.cfg ]; then SDLOG=/mnt/sd/ztos/logs; break 2; fi
+      umount /mnt/sd 2>/dev/null
+    fi
+  done
 done
 if [ -n "$SDLOG" ]; then
   N=$(date +%s 2>/dev/null || echo 0)
