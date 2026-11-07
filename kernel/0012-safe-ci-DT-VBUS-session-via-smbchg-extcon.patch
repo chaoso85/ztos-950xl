@@ -1,0 +1,25 @@
+From e4c5e726cb1b73521a4eb5f76a7831a9cdedc4f8 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sat, 7 Nov 2026 20:56:11 +0000
+Subject: [PATCH] safe-ci DT: VBUS session via smbchg extcon
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ .../boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe-ci.dts | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe-ci.dts b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe-ci.dts
+index 87a0a04a8da..7b21e20115e 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe-ci.dts
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe-ci.dts
+@@ -30,6 +30,7 @@ usb_hs: usb@f9a55000 {
+ 			dr_mode = "peripheral";
+ 			phy_type = "ulpi";
+ 			phys = <&hs_xceiv>;
++			extcon = <&pmi8994_smbchg>, <&pmi8994_smbchg>;
+ 			ahb-burst-config = <0>;
+ 			status = "okay";
+ 		};
+-- 
+2.43.0
+
