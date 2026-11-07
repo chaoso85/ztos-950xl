@@ -1,0 +1,47 @@
+From 4c7f91927e86b91f7522209dbda1f1f779b445fa Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sat, 7 Nov 2026 21:11:30 +0000
+Subject: [PATCH] arm64: dts: qcom: octagon: use device-mode HS PHY init value
+ 0x00d1d9a4
+
+What was wrong: the HS PHY parameter-override value programmed for the
+gadget (device) mode was 0x00d191a4. That is the value the original Lumia
+kernel uses for HOST mode only. For device mode it uses 0x00d1d9a4
+(differs in bits 14 and 11, PHY tuning).
+
+Source: Android4Lumia950/android_kernel_mmo_msm8994 (branch
+lineage-18.1-talkman), arch/arm64/boot/dts/mmo/msm8994-chi.dtsi:
+
+    &hsphy0 {
+        qcom,hsphy-init-host = <0x00D191A4>;
+        qcom,hsphy-init      = <0x00D1D9A4>;   /* device mode */
+    };
+
+The same file also shows that the original kernel runs the USB gadget on
+DWC3 + hsphy0 (f92f8800/f9b3a000) and disables the QUSB2/ChipIdea PHY, so
+the DWC3 path is the right one for the Type-C data lines; the ChipIdea
+experiments (cityman-safe-ci) were a detour. The HS PHY init sequence in
+drivers/usb/phy/phy-msm-hsusb.c of that tree matches our
+phy-msm8994-hsusb.c (sleep-clk reset, HS_PHY_CTRL, COMMON, override).
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+index 7949f2c1b3b..70610f26411 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+@@ -792,7 +792,7 @@ &usb3_hsphy {
+ 
+ 	vdda18-supply = <&vreg_l6a_1p8>;
+ 	vdda33-supply = <&vreg_l24a_3p075>;
+-	qcom,hsphy-init = <0x00d191a4>;
++	qcom,hsphy-init = <0x00d1d9a4>;
+ 	qcom,set-pllbtune;
+ };
+ 
+-- 
+2.43.0
+
