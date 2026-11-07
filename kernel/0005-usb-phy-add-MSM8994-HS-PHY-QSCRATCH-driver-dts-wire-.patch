@@ -1,0 +1,294 @@
+From 6cc00fa04d3d75103a80650ad5f595baf82b89b2 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sat, 7 Nov 2026 19:38:02 +0000
+Subject: [PATCH] usb: phy: add MSM8994 HS PHY (QSCRATCH) driver; dts: wire it,
+ trim slow devices in safe DTB
+
+---
+ ...sm8994-msft-lumia-octagon-cityman-safe.dts |   6 +
+ .../dts/qcom/msm8994-msft-lumia-octagon.dtsi  |  20 +-
+ arch/arm64/boot/dts/qcom/msm8994.dtsi         |  10 +
+ drivers/usb/phy/Kconfig                       |   8 +
+ drivers/usb/phy/Makefile                      |   1 +
+ drivers/usb/phy/phy-msm8994-hsusb.c           | 173 ++++++++++++++++++
+ 6 files changed, 206 insertions(+), 12 deletions(-)
+ create mode 100644 drivers/usb/phy/phy-msm8994-hsusb.c
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe.dts b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe.dts
+index 09cb5de75c3..da76e0f078f 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe.dts
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman-safe.dts
+@@ -14,3 +14,9 @@
+ &vfe_iommu { status = "disabled"; };
+ &camss { status = "disabled"; };
+ &cci { status = "disabled"; };
++
++/* Slow / timing-out devices: shorten the debug boot from ~65 s to a few seconds. */
++&pn547 { status = "disabled"; };
++&qca6174_bt { status = "disabled"; };
++&qpdst900 { status = "disabled"; };
++&pmi8994_fg { status = "disabled"; };
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+index aad4e7bdd85..7949f2c1b3b 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+@@ -787,22 +787,18 @@ &pmi8994_smbchg {
+ 	status = "okay";
+ };
+ 
+-/*
+- * No mainline MSM8994 HS/SS PHY driver exists. The Windows UEFI leaves the
+- * HS PHY initialised, so only keep its supplies (l24 3.075V, l6 1.8V,
+- * l28 1.0V) enabled via a nop transceiver. Full-featured PHY driver TODO.
+- */
+-/ {
+-	usb3_hsphy: usb-hsphy {
+-		compatible = "usb-nop-xceiv";
+-		vcc-supply = <&vreg_l24a_3p075>;
+-		#phy-cells = <0>;
+-	};
++&usb3_hsphy {
++	status = "okay";
++
++	vdda18-supply = <&vreg_l6a_1p8>;
++	vdda33-supply = <&vreg_l24a_3p075>;
++	qcom,hsphy-init = <0x00d191a4>;
++	qcom,set-pllbtune;
+ };
+ 
+ &usb3_dwc3 {
+ 	usb-psy-name = "qcom-smbchg-usb";
+-	usb-phy = <&usb3_hsphy>, <&usb3_hsphy>;
++	usb-phy = <&usb3_hsphy>;
+ };
+ 
+ &pmi8994_gpios {
+diff --git a/arch/arm64/boot/dts/qcom/msm8994.dtsi b/arch/arm64/boot/dts/qcom/msm8994.dtsi
+index 57521b2c5cd..803e892e601 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8994.dtsi
+@@ -476,6 +476,16 @@ usb3_dwc3: usb@f9200000 {
+ 			};
+ 		};
+ 
++		usb3_hsphy: phy@f9b3a000 {
++			compatible = "qcom,msm8994-usb-hsphy";
++			reg = <0xf9b3a000 0x110>, <0xf92f8800 0x400>;
++			reg-names = "csr", "qscratch";
++			clocks = <&gcc GCC_USB2_HS_PHY_SLEEP_CLK>;
++			clock-names = "sleep";
++			#phy-cells = <0>;
++			status = "disabled";
++		};
++
+ 		sdhc1: mmc@f9824900 {
+ 			compatible = "qcom,msm8994-sdhci", "qcom,sdhci-msm-v4";
+ 			reg = <0xf9824900 0x1a0>, <0xf9824000 0x800>;
+diff --git a/drivers/usb/phy/Kconfig b/drivers/usb/phy/Kconfig
+index b7acf3966cd..a162b541372 100644
+--- a/drivers/usb/phy/Kconfig
++++ b/drivers/usb/phy/Kconfig
+@@ -160,4 +160,12 @@ config USB_ULPI_VIEWPORT
+ 	  Provides read/write operations to the ULPI phy register set for
+ 	  controllers with a viewport register (e.g. Chipidea/ARC controllers).
+ 
++config USB_MSM8994_HSPHY
++	tristate "Qualcomm MSM8994 USB HS PHY"
++	depends on ARCH_QCOM || COMPILE_TEST
++	select USB_PHY
++	help
++	  Synopsys 28nm HS PHY on MSM8994 (Snapdragon 810), controlled via the
++	  DWC3 QSCRATCH registers. Needed for USB gadget on the Lumia 950 XL.
++
+ endmenu
+diff --git a/drivers/usb/phy/Makefile b/drivers/usb/phy/Makefile
+index ceae46c5341..792c4768436 100644
+--- a/drivers/usb/phy/Makefile
++++ b/drivers/usb/phy/Makefile
+@@ -22,3 +22,4 @@ obj-$(CONFIG_USB_MXS_PHY)		+= phy-mxs-usb.o
+ obj-$(CONFIG_USB_ULPI)			+= phy-ulpi.o
+ obj-$(CONFIG_USB_ULPI_VIEWPORT)		+= phy-ulpi-viewport.o
+ obj-$(CONFIG_KEYSTONE_USB_PHY)		+= phy-keystone.o
++obj-$(CONFIG_USB_MSM8994_HSPHY)	+= phy-msm8994-hsusb.o
+diff --git a/drivers/usb/phy/phy-msm8994-hsusb.c b/drivers/usb/phy/phy-msm8994-hsusb.c
+new file mode 100644
+index 00000000000..bbe43c3f59d
+--- /dev/null
++++ b/drivers/usb/phy/phy-msm8994-hsusb.c
+@@ -0,0 +1,173 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Qualcomm MSM8994 USB 2.0 HS PHY (Synopsys 28nm, controlled through the
++ * DWC3 QSCRATCH glue registers).
++ *
++ * Bring-up port of the init path of the downstream phy-msm-hsusb.c: the
++ * bootloader/UEFI uses a different USB core on this SoC and does not leave
++ * this PHY configured, so Linux has to power and program it.
++ */
++#include <linux/clk.h>
++#include <linux/delay.h>
++#include <linux/io.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/of_address.h>
++#include <linux/platform_device.h>
++#include <linux/regulator/consumer.h>
++#include <linux/usb/phy.h>
++
++/* QSCRATCH offsets */
++#define HS_PHY_CTRL			0x10
++#define PARAMETER_OVERRIDE_X		0x14
++#define HS_PHY_CTRL_COMMON		0xec	/* core version >= 1.2 */
++
++#define HS_RETENABLEN			BIT(1)
++#define HS_CLAMP_MPM_DPSE_DMSE_EN_N	BIT(26)
++#define HS_USB2_UTMI_CLK_EN		BIT(21)
++
++#define COMMON_CLKCORE			BIT(14)
++#define COMMON_PLLBTUNE			BIT(15)
++#define COMMON_OTGDISABLE0		BIT(11)
++#define COMMON_OTGTUNE0_DEFAULT		(0x4 << 8)
++#define COMMON_COMMONONN		BIT(7)
++#define COMMON_FSEL_MASK		(0x7 << 4)
++#define COMMON_FSEL_DEFAULT		(0x3 << 4)
++#define COMMON_RETENABLEN		BIT(3)
++
++#define MSM_CORE_VER_120		0x10020061
++#define PARAM_OVERRIDE_MASK		0x03ffffff
++
++struct msm8994_hsphy {
++	struct usb_phy phy;
++	void __iomem *qscratch;
++	struct clk *sleep_clk;
++	struct regulator *vdda18;
++	struct regulator *vdda33;
++	u32 init_seq;
++	bool set_pllbtune;
++};
++
++static int msm8994_hsphy_init(struct usb_phy *uphy)
++{
++	struct msm8994_hsphy *p = container_of(uphy, struct msm8994_hsphy, phy);
++	u32 val, core_ver;
++
++	val = readl(p->qscratch + HS_PHY_CTRL);
++	val |= HS_USB2_UTMI_CLK_EN | HS_CLAMP_MPM_DPSE_DMSE_EN_N |
++	       HS_RETENABLEN;
++	writel(val, p->qscratch + HS_PHY_CTRL);
++	usleep_range(2000, 2200);
++
++	core_ver = readl(p->qscratch);
++	if (core_ver >= MSM_CORE_VER_120) {
++		val = readl(p->qscratch + HS_PHY_CTRL_COMMON);
++		val |= COMMON_OTGDISABLE0 | COMMON_OTGTUNE0_DEFAULT |
++		       COMMON_COMMONONN | COMMON_FSEL_DEFAULT |
++		       COMMON_RETENABLEN;
++		if (p->set_pllbtune) {
++			val |= COMMON_PLLBTUNE | COMMON_CLKCORE;
++			val &= ~COMMON_FSEL_MASK;
++		}
++		writel(val, p->qscratch + HS_PHY_CTRL_COMMON);
++	}
++
++	if (p->init_seq) {
++		val = readl(p->qscratch + PARAMETER_OVERRIDE_X);
++		val &= ~PARAM_OVERRIDE_MASK;
++		val |= p->init_seq & PARAM_OVERRIDE_MASK;
++		writel(val, p->qscratch + PARAMETER_OVERRIDE_X);
++	}
++
++	dev_info(uphy->dev, "HS PHY initialised (core ver %#x, override %#x)\n",
++		 core_ver, readl(p->qscratch + PARAMETER_OVERRIDE_X));
++	return 0;
++}
++
++static int msm8994_hsphy_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct msm8994_hsphy *p;
++	struct resource *res;
++	int ret;
++
++	p = devm_kzalloc(dev, sizeof(*p), GFP_KERNEL);
++	if (!p)
++		return -ENOMEM;
++
++	/* QSCRATCH is shared with the DWC3 glue: map without claiming it. */
++	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "qscratch");
++	if (!res)
++		return -EINVAL;
++	p->qscratch = devm_ioremap(dev, res->start, resource_size(res));
++	if (!p->qscratch)
++		return -ENOMEM;
++
++	p->vdda18 = devm_regulator_get(dev, "vdda18");
++	if (IS_ERR(p->vdda18))
++		return dev_err_probe(dev, PTR_ERR(p->vdda18), "vdda18\n");
++	p->vdda33 = devm_regulator_get(dev, "vdda33");
++	if (IS_ERR(p->vdda33))
++		return dev_err_probe(dev, PTR_ERR(p->vdda33), "vdda33\n");
++
++	p->sleep_clk = devm_clk_get_enabled(dev, "sleep");
++	if (IS_ERR(p->sleep_clk))
++		return dev_err_probe(dev, PTR_ERR(p->sleep_clk), "sleep clk\n");
++
++	ret = regulator_set_load(p->vdda18, 19000);
++	if (ret < 0)
++		return ret;
++	ret = regulator_set_load(p->vdda33, 16000);
++	if (ret < 0)
++		return ret;
++	ret = regulator_enable(p->vdda18);
++	if (ret)
++		return ret;
++	ret = regulator_set_voltage(p->vdda33, 3050000, 3300000);
++	if (!ret)
++		ret = regulator_enable(p->vdda33);
++	if (ret) {
++		regulator_disable(p->vdda18);
++		return ret;
++	}
++
++	of_property_read_u32(dev->of_node, "qcom,hsphy-init", &p->init_seq);
++	p->set_pllbtune = of_property_read_bool(dev->of_node,
++						"qcom,set-pllbtune");
++
++	p->phy.dev = dev;
++	p->phy.label = "msm8994-hsusb-phy";
++	p->phy.init = msm8994_hsphy_init;
++	p->phy.type = USB_PHY_TYPE_USB2;
++
++	platform_set_drvdata(pdev, p);
++	return usb_add_phy_dev(&p->phy);
++}
++
++static void msm8994_hsphy_remove(struct platform_device *pdev)
++{
++	struct msm8994_hsphy *p = platform_get_drvdata(pdev);
++
++	usb_remove_phy(&p->phy);
++	regulator_disable(p->vdda33);
++	regulator_disable(p->vdda18);
++}
++
++static const struct of_device_id msm8994_hsphy_of_match[] = {
++	{ .compatible = "qcom,msm8994-usb-hsphy" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, msm8994_hsphy_of_match);
++
++static struct platform_driver msm8994_hsphy_driver = {
++	.probe = msm8994_hsphy_probe,
++	.remove = msm8994_hsphy_remove,
++	.driver = {
++		.name = "msm8994-usb-hsphy",
++		.of_match_table = msm8994_hsphy_of_match,
++	},
++};
++module_platform_driver(msm8994_hsphy_driver);
++
++MODULE_DESCRIPTION("Qualcomm MSM8994 USB HS PHY (QSCRATCH-controlled)");
++MODULE_LICENSE("GPL");
+-- 
+2.43.0
+
