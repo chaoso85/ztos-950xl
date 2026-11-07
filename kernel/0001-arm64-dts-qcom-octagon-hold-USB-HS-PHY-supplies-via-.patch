@@ -1,0 +1,48 @@
+From 85a9a47d508c7f95dcf6ff0230835113b84f18c8 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sat, 7 Nov 2026 17:27:30 +0000
+Subject: [PATCH] arm64: dts: qcom: octagon: hold USB HS PHY supplies via nop
+ xceiv, gadget-only DWC3
+
+---
+ .../boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+index 061f2680af9..ce5251a21b2 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+@@ -781,8 +781,22 @@ &pmi8994_smbchg {
+ 	status = "okay";
+ };
+ 
++/*
++ * No mainline MSM8994 HS/SS PHY driver exists. The Windows UEFI leaves the
++ * HS PHY initialised, so only keep its supplies (l24 3.075V, l6 1.8V,
++ * l28 1.0V) enabled via a nop transceiver. Full-featured PHY driver TODO.
++ */
++/ {
++	usb3_hsphy: usb-hsphy {
++		compatible = "usb-nop-xceiv";
++		vcc-supply = <&vreg_l24a_3p075>;
++		#phy-cells = <0>;
++	};
++};
++
+ &usb3_dwc3 {
+ 	usb-psy-name = "qcom-smbchg-usb";
++	usb-phy = <&usb3_hsphy>, <&usb3_hsphy>;
+ };
+ 
+ &pmi8994_gpios {
+@@ -921,6 +935,7 @@ vreg_l4a_1p225: l4 {
+ 		vreg_l6a_1p8: l6 {
+ 			regulator-min-microvolt = <1800000>;
+ 			regulator-max-microvolt = <1800000>;
++			regulator-always-on;
+ 			regulator-allow-set-load;
+ 			regulator-system-load = <1000>;
+ 		};
+-- 
+2.43.0
+
