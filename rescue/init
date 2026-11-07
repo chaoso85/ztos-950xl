@@ -1,0 +1,64 @@
+#!/bin/busybox sh
+# ztOS-950XL rescue init: USB gadget (ACM serial + ECM ethernet), shell, optional SSH
+/bin/busybox --install -s /bin
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+mount -t proc proc /proc; mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev 2>/dev/null || mount -t tmpfs dev /dev
+mkdir -p /dev/pts /sys/kernel/config; mount -t devpts devpts /dev/pts
+mount -t configfs none /sys/kernel/config
+mount -t tmpfs tmpfs /run
+
+log() { echo "[rescue] $*" | tee -a /dev/kmsg >/dev/null 2>&1; echo "[rescue] $*"; }
+log "init start, kernel $(uname -r)"
+
+# --- UC120 Type-C controller firmware (extracted from the phone at install time, not shipped) ---
+[ -e /lib/firmware/lattice/ice5lp_2k_cal.bin ] || log "WARNING: no lattice/ice5lp_2k_cal.bin in /lib/firmware (Type-C CC detect may not work)"
+
+# --- wait for a UDC (DWC3 gadget controller) ---
+i=0; while [ -z "$(ls /sys/class/udc 2>/dev/null)" ] && [ $i -lt 60 ]; do sleep 1; i=$((i+1)); done
+UDC=$(ls /sys/class/udc 2>/dev/null | head -n1)
+if [ -z "$UDC" ]; then log "NO UDC FOUND after 60s (dwc3 / PHY not up). dmesg follows:"; dmesg | grep -iE "dwc3|usb|uc120|smbchg|phy" | tail -40; fi
+
+G=/sys/kernel/config/usb_gadget/ztos
+if [ -n "$UDC" ]; then
+  mkdir -p $G && cd $G
+  echo 0x1d6b > idVendor; echo 0x0104 > idProduct   # Linux Foundation / Multifunction Composite
+  echo 0x0100 > bcdDevice; echo 0x0200 > bcdUSB
+  mkdir -p strings/0x409
+  echo "ztos-950xl-rescue" > strings/0x409/serialNumber
+  echo "ztOS"              > strings/0x409/manufacturer
+  echo "Lumia 950 XL rescue" > strings/0x409/product
+  mkdir -p configs/c.1/strings/0x409; echo "ACM+ECM" > configs/c.1/strings/0x409/configuration
+  echo 250 > configs/c.1/MaxPower
+  mkdir -p functions/acm.usb0 functions/ecm.usb0
+  echo 02:5a:74:05:00:01 > functions/ecm.usb0/host_addr
+  echo 02:5a:74:05:00:02 > functions/ecm.usb0/dev_addr
+  ln -s functions/acm.usb0 configs/c.1/
+  ln -s functions/ecm.usb0 configs/c.1/
+  echo "$UDC" > UDC && log "gadget bound to $UDC"
+  cd /
+  sleep 2
+  ifconfig usb0 192.168.77.2 netmask 255.255.255.0 up 2>/dev/null && log "usb0 = 192.168.77.2/24 (host: 192.168.77.1)"
+fi
+
+# --- shell on the ACM serial port (/dev/ttyGS0) ---
+if [ -e /dev/ttyGS0 ]; then
+  (while true; do setsid sh -c 'exec sh </dev/ttyGS0 >/dev/ttyGS0 2>&1' ; sleep 1; done) &
+  log "root shell on /dev/ttyGS0"
+fi
+
+# --- SSH (only if dropbear was bundled; key-only, authorized_keys baked into the image) ---
+if [ -x /sbin/dropbear ]; then
+  mkdir -p /etc/dropbear /root/.ssh; chmod 700 /root/.ssh
+  [ -f /etc/dropbear/dropbear_ed25519_host_key ] || /sbin/dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key >/dev/null 2>&1
+  /sbin/dropbear -s -R -p 192.168.77.2:22 && log "dropbear listening on 192.168.77.2:22 (key auth only)"
+else
+  log "no dropbear in image: use the ACM serial shell"
+fi
+
+# --- local debug dump to the framebuffer console ---
+dmesg > /run/dmesg.txt
+( while true; do sleep 30; dmesg | tail -n 5 > /dev/kmsg 2>/dev/null; done ) &
+
+log "rescue ready"
+while true; do sleep 3600; done
