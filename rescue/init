@@ -107,6 +107,14 @@ mount -t debugfs none /sys/kernel/debug 2>/dev/null
       log "dwc3 GCTL/GSTS/GUSB2PHYCFG/DCFG/DCTL/DEVTEN/DSTS: $(/sbin/mmio 0xf920c110 0xf920c118 0xf920c200 0xf920c700 0xf920c704 0xf920c708 0xf920c70c 2>&1)"
       log "qscratch ver/gencfg/hsphyctrl/override/common: $(/sbin/mmio 0xf92f8800 0xf92f8808 0xf92f8810 0xf92f8814 0xf92f88ec 2>&1)"
       fi
+      case "$(ls /sys/class/udc 2>/dev/null)" in ci_hdrc*)
+        log "ulpi VID/PID 00-03, FUNC 04, IFC 07, OTG 0a, INTEN 0d/0e, INTSTS 13, DEBUG 15: $(/sbin/ulpi r 0 1 2 3 4 7 0xa 0xd 0xe 0x13 0x15 2>&1)"
+        case "$st" in *smbchg-usb=1*) if [ -z "$ULPIFIX" ]; then ULPIFIX=1
+          /sbin/ulpi w 0xc 0x06 >/dev/null 2>&1   # clear DP/DM pulldowns
+          sleep 1
+          log "ulpi after clearing OTG pulldowns: $(/sbin/ulpi r 4 0xa 0x15 2>&1) portsc: $(/sbin/mmio 0xf9a55184 2>&1)"
+        fi;; esac;;
+      esac
       case "$(ls /sys/class/udc 2>/dev/null)" in ci_hdrc*) log "chipidea USBCMD/USBSTS/ULPIVP/PORTSC/OTGSC/USBMODE: $(/sbin/mmio 0xf9a55140 0xf9a55144 0xf9a55170 0xf9a55184 0xf9a551a4 0xf9a551a8 2>&1)";; esac
       for f in /sys/kernel/debug/usb/*/regdump; do [ -r $f ] && grep -E 'DCTL|DSTS|GUSB2PHYCFG|GCTL' $f | while read l; do log "reg $l"; done; done
     fi
