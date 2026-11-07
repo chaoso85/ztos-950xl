@@ -39,6 +39,21 @@ if [ -n "$SDLOG" ]; then
   ( while true; do sync; sleep 2; done ) &
 fi
 
+# --- dwc3 / gadget tracepoints to the SD card (EP0 requests, events, status) ---
+if [ -n "$SDLOG" ]; then
+  mount -t tracefs none /sys/kernel/tracing 2>/dev/null
+  T=/sys/kernel/tracing
+  if [ -d $T/events/dwc3 ]; then
+    [ -f "$SDLOG/trace.txt" ] && mv -f "$SDLOG/trace.txt" "$SDLOG/trace-prev.txt"
+    echo 8192 > $T/buffer_size_kb 2>/dev/null
+    for e in dwc3_event dwc3_ep_queue dwc3_gadget_giveback dwc3_complete_trb dwc3_ctrl_req dwc3_gadget_ep_cmd dwc3_gadget_generic_cmd dwc3_prepare_trb dwc3_ep0; do
+      [ -e $T/events/dwc3/$e/enable ] && echo 1 > $T/events/dwc3/$e/enable
+    done
+    echo 1 > $T/events/dwc3/enable 2>/dev/null
+    ( cat $T/trace_pipe >> "$SDLOG/trace.txt" ) &
+  fi
+fi
+
 log() { echo "[rescue] $*" | tee -a /dev/kmsg >/dev/null 2>&1; echo "[rescue] $*"; }
 log "init start, kernel $(uname -r)"
 
