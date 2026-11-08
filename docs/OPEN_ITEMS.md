@@ -14,14 +14,15 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 - [ ] **PSCI eksik:** kapatma / yeniden başlatma güvenilmez.
 
 ## 1b. Tam-DT açılış günlüğünden çıkanlar (2026-11-08, ayrıntı: `research/BRINGUP_LOG.md`)
-- [ ] (!) **Ekran yanmıyor:** DSI açılırken `pclk0/1`, `byte0/1_clk_src` "rcg didn't update its configuration" (DSI PHY PLL çalışmıyor); `pp done time out, lm=2`. Sıra: PHY PLL / piksel saati.
-- [ ] **GPU:** `a420_pm4.fw` / `a420_pfp.fw` initramfs'te yok (61 sn bekleme); `oxili_gfx3d_clk` stuck (GPU iommu resume, GX güç alanı); adreno `vdd`/`vddcx` ve DSI `lab_reg`/`ibb_reg` DT'de yok; GPU cooling device kaydı başarısız.
+- [ ] (!) **Ekran yanmıyor** (düzeltme yazıldı, cihazda denenmedi: patch 0018 `CLK_OPS_PARENT_ENABLE`): DSI açılırken `pclk0/1`, `byte0/1_clk_src` "rcg didn't update its configuration" (DSI PHY PLL çalışmıyor); `pp done time out, lm=2`. Sıra: PHY PLL / piksel saati.
+- [ ] **GPU** (iommu `tbu` saati DT'den çıkarıldı, patch 0019; firmware initramfs'e `build_initramfs.sh ... fw/` ile giriyor, depoda yok; denenmedi): `a420_pm4.fw` / `a420_pfp.fw` initramfs'te yok (61 sn bekleme); `oxili_gfx3d_clk` stuck (GPU iommu resume, GX güç alanı); adreno `vdd`/`vddcx` ve DSI `lab_reg`/`ibb_reg` DT'de yok; GPU cooling device kaydı başarısız.
 - [ ] `fb0: framebuffer is not in virtual address space` (fbcon msm fbdev'e geçerken).
 - [x] `NR_CPUS` 6 -> 8 (950 XL 4xA57+4xA53) ve A53/A57 için ayrı PMU (patch 0017). Cihazda henüz denenmedi.
 - [x] NFC (pn547) DT'de kapatıldı: arka kapak yokken polarite tespiti 33 sn bloklıyordu. Kapak takılınca `status = "disabled"` kaldırılacak.
 - [ ] `psci-cpuidle` -ENODEV: CPU idle durumları yok (güç tüketimi).
-- [ ] DT'de olmayan/yanlış donanım: si470x (5-0011), fan53555 (5-006c), ad714x (4-002c, IRQ yok), mpu6050 (2-0068), ccs sensörleri (6-0020, 6-006c, 7-0020); tsl2772 supply'ları; `i2c_qup f9967000` tx DMA kanalı.
+- [x] (DT'de kapatıldı/düzeltildi, patch 0019; denenmedi) DT'de olmayan/yanlış donanım (ad7147 IRQ sözdizimi hatası da düzeltildi): si470x (5-0011), fan53555 (5-006c), ad714x (4-002c, IRQ yok), mpu6050 (2-0068), ccs sensörleri (6-0020, 6-006c, 7-0020); tsl2772 supply'ları; `i2c_qup f9967000` tx DMA kanalı.
 - [ ] Gecikmeler: fuel gauge probe ~19,8 sn, RPM regülatörleri ~8,3 sn, vadc + `spurious spmi irq apid=158` WARN.
+- [x] `FW_LOADER_USER_HELPER(_FALLBACK)` kapatıldı: eksik firmware artık 60 sn beklemiyor (denenmedi).
 - [ ] Bluetooth ROME/QCA6390 0xfc00 timeout; ses: ADSP firmware (`qcadsp8994.mbn`) ve `regulatory.db` yok.
 - [ ] `keep_bootcon` olmadan zamanlaması gerçekçi bir günlük al (efifb erken zaman damgalarını ~40 kat şişiriyor).
 - [ ] "Volume was not properly unmounted" safe-reboot sonrası da çıkıyor; nedeni bulunamadı.

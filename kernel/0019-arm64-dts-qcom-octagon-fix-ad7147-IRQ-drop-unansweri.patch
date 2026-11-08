@@ -1,0 +1,132 @@
+From 6039a934deab253123019a778f1d37979eb64c81 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 17:33:25 +0000
+Subject: [PATCH 19/19] arm64: dts: qcom: octagon: fix ad7147 IRQ, drop
+ unanswering devices, trim GPU iommu clocks
+
+Found by: reading the full-DT boot log end to end.
+Fixed / changed:
+- sideinteraction (ad7147) used "interrupts = <&tlmm 96 ...>", which is
+  not valid (phandle in interrupts); now interrupts-extended. Was
+  "IRQ not configured" (-22).
+- gpu_iommu: the optional "tbu" clock is OXILI_GFX3D_CLK, which needs the
+  GX domain, off at iommu probe: seven "oxili_gfx3d_clk status stuck at
+  'off'" WARNs and a 28 s probe. Only "iface" is kept.
+- apds9930 (qpdst900) got vdd/vddio supplies (was dummy regulators, -110).
+- Disabled nodes whose chip does not answer: mpu6500 (whoami 0x00),
+  si4705 (ChipID 0), fan53526a (chip ID -ENXIO) and the three CCS camera
+  sensors (generic CCS driver does not work with them, CCI timeout; they
+  also kept mmcc sync_state pending).
+Config (not in this commit): FW_LOADER_USER_HELPER(_FALLBACK) off, so a
+missing firmware no longer costs a 60 s sysfs fallback wait.
+(No reference project used; found on the phone.)
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ .../dts/qcom/msm8994-msft-lumia-octagon.dtsi  | 23 ++++++++++++++++++-
+ arch/arm64/boot/dts/qcom/msm8994.dtsi         |  6 ++---
+ 2 files changed, 25 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+index fccfeeefa7e..b709b073739 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+@@ -374,6 +374,9 @@ ffc_sensor@20 {
+ 		compatible = "nokia,smia";
+ 		reg = <0x20>;
+ 
++		/* generic CCS driver does not work with this sensor yet (dummy supplies, CCI timeout); re-enable with the sensor driver */
++		status = "disabled";
++
+ 		vana-supply = <&vreg_l17a_2p7>;
+ 		vio-supply = <&vreg_lvs1a_1p8>;
+ 
+@@ -402,6 +405,9 @@ iris_sensor@6c {
+ 		compatible = "nokia,smia";
+ 		reg = <0x6c>;
+ 
++		/* generic CCS driver does not work with this sensor yet (dummy supplies, CCI timeout); re-enable with the sensor driver */
++		status = "disabled";
++
+ 		vana-supply = <&vreg_l17a_2p7>;
+ 		vio-supply = <&vreg_lvs1a_1p8>;
+ 		vcore-supply = <&vreg_l3a_1p2>;
+@@ -433,6 +439,9 @@ rfc_sensor@20 {
+ 		compatible = "nokia,smia";
+ 		reg = <0x20>;
+ 
++		/* generic CCS driver does not work with this sensor yet (dummy supplies, CCI timeout); re-enable with the sensor driver */
++		status = "disabled";
++
+ 		vana-supply = <&vreg_l29a_2p8>;
+ 		vio-supply = <&vreg_l23a_2p8>;
+ 		vcore-supply = <&vreg_l25a_1p1>;
+@@ -588,6 +597,9 @@ mpu6050: accelerometer@68 {
+ 		compatible = "invensense,mpu6500";
+ 		reg = <0x68>;
+ 
++		/* no answer on I2C (whoami 0x00, expected 0x70) */
++		status = "disabled";
++
+ 		interrupt-parent = <&tlmm>;
+ 		interrupts = <64 IRQ_TYPE_EDGE_RISING>;
+ 
+@@ -629,7 +641,7 @@ sideinteraction: touch@2c {
+ 		pinctrl-0 = <&grip_default>;
+ 		pinctrl-1 = <&grip_sleep>;
+ 
+-		interrupts = <&tlmm 96 IRQ_TYPE_EDGE_FALLING>;
++		interrupts-extended = <&tlmm 96 IRQ_TYPE_EDGE_FALLING>;
+ 
+ 		vcc-supply = <&vreg_l18a_2p85>;
+ 	};
+@@ -646,6 +658,9 @@ qpdst900: qpdst900@39 {
+ 
+ 		interrupt-parent = <&tlmm>;
+ 		interrupts = <40 IRQ_TYPE_EDGE_FALLING>;
++
++		vdd-supply = <&vreg_l18a_2p85>;
++		vddio-supply = <&vreg_lvs2a_1p8>;
+ 	};
+ };
+ 
+@@ -656,6 +671,9 @@ fm_radio: si4705@11 {
+ 		compatible = "silabs,si470x";
+ 		reg = <0x11>;
+ 
++		/* no chip answers (DeviceID/ChipID 0x0000) */
++		status = "disabled";
++
+ 		interrupt-parent = <&tlmm>;
+ 		interrupts = <9 IRQ_TYPE_EDGE_FALLING>;
+ 		reset-gpios = <&tlmm 93 GPIO_ACTIVE_HIGH>;
+@@ -665,6 +683,9 @@ vreg_lpddr_1p1: fan53526a@6c {
+ 		compatible = "fcs,fan53526";
+ 		reg = <0x6c>;
+ 
++		/* chip ID read fails (-ENXIO); DDR rail is set up by the bootloader */
++		status = "disabled";
++
+ 		regulator-min-microvolt = <1100000>;
+ 		regulator-max-microvolt = <1100000>;
+ 		vin-supply = <&vph_pwr>;
+diff --git a/arch/arm64/boot/dts/qcom/msm8994.dtsi b/arch/arm64/boot/dts/qcom/msm8994.dtsi
+index 8e502903f7e..dfbd10403c7 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8994.dtsi
+@@ -834,9 +834,9 @@ gpu_iommu: iommu@fdb10000 {
+ 			#iommu-cells = <1>;
+ 			ranges = <0 0xfdb18000 0x2000>;
+ 
+-			clocks = <&mmcc OXILICX_AHB_CLK>,
+-				 <&mmcc OXILI_GFX3D_CLK>;
+-			clock-names = "iface", "tbu";
++			/* "tbu" (OXILI_GFX3D_CLK) needs the GX domain, which is off when the iommu probes */
++			clocks = <&mmcc OXILICX_AHB_CLK>;
++			clock-names = "iface";
+ 			power-domains = <&mmcc OXILI_CX_GDSC>;
+ 
+ 			/* GFX3D_USER */
+-- 
+2.43.0
+

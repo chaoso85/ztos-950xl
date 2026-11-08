@@ -1,0 +1,65 @@
+From d3ade5d6a3d0c6026f501c2e96afab95801d5cba Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 17:33:24 +0000
+Subject: [PATCH 18/19] clk: qcom: mmcc-msm8994: enable the DSI PLL parent
+ while pclk/byte RCGs are reprogrammed
+
+Found by: full-DT boot log, eight WARNs "pclk0/pclk1/byte0/byte1_clk_src:
+rcg didn't update its configuration" from dsi_link_clk_set_rate_6g(),
+followed by endless "msm_mdp: pp done time out, lm=2".
+
+What was wrong before: clk_change_rate() programs the DSI VCO first and
+the RCGs below it afterwards, but the VCO is only prepared (and locked)
+later by the branch clocks. An RCG update never completes while its
+source is not running. CLK_OPS_PARENT_ENABLE makes the core prepare and
+enable the parent chain (and so lock the 20nm PLL) around the RCG update.
+(Idea from the core clk flag; no reference project had this.)
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ drivers/clk/qcom/mmcc-msm8994.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/clk/qcom/mmcc-msm8994.c b/drivers/clk/qcom/mmcc-msm8994.c
+index ef37f7528b5..fdb525c2616 100644
+--- a/drivers/clk/qcom/mmcc-msm8994.c
++++ b/drivers/clk/qcom/mmcc-msm8994.c
+@@ -677,7 +677,7 @@ static struct clk_rcg2 pclk0_clk_src = {
+ 		.parent_data = mmcc_xo_dsi0pll_dsi1pll,
+ 		.num_parents = ARRAY_SIZE(mmcc_xo_dsi0pll_dsi1pll),
+ 		.ops = &clk_pixel_ops,
+-		.flags = CLK_SET_RATE_PARENT | CLK_GET_RATE_NOCACHE,
++		.flags = CLK_SET_RATE_PARENT | CLK_GET_RATE_NOCACHE | CLK_OPS_PARENT_ENABLE,
+ 	},
+ };
+ 
+@@ -691,7 +691,7 @@ static struct clk_rcg2 pclk1_clk_src = {
+ 		.parent_data = mmcc_xo_dsi0pll_dsi1pll,
+ 		.num_parents = ARRAY_SIZE(mmcc_xo_dsi0pll_dsi1pll),
+ 		.ops = &clk_pixel_ops,
+-		.flags = CLK_SET_RATE_PARENT | CLK_GET_RATE_NOCACHE,
++		.flags = CLK_SET_RATE_PARENT | CLK_GET_RATE_NOCACHE | CLK_OPS_PARENT_ENABLE,
+ 	},
+ };
+ 
+@@ -957,7 +957,7 @@ static struct clk_rcg2 byte0_clk_src = {
+ 		.parent_data = mmcc_xo_dsibyte,
+ 		.num_parents = ARRAY_SIZE(mmcc_xo_dsibyte),
+ 		.ops = &clk_byte2_ops,
+-		.flags = CLK_SET_RATE_PARENT | CLK_GET_RATE_NOCACHE,
++		.flags = CLK_SET_RATE_PARENT | CLK_GET_RATE_NOCACHE | CLK_OPS_PARENT_ENABLE,
+ 	},
+ };
+ 
+@@ -970,7 +970,7 @@ static struct clk_rcg2 byte1_clk_src = {
+ 		.parent_data = mmcc_xo_dsibyte,
+ 		.num_parents = ARRAY_SIZE(mmcc_xo_dsibyte),
+ 		.ops = &clk_byte2_ops,
+-		.flags = CLK_SET_RATE_PARENT | CLK_GET_RATE_NOCACHE,
++		.flags = CLK_SET_RATE_PARENT | CLK_GET_RATE_NOCACHE | CLK_OPS_PARENT_ENABLE,
+ 	},
+ };
+ 
+-- 
+2.43.0
+
