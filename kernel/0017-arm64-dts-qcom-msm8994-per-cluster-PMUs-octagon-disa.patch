@@ -1,0 +1,71 @@
+From 14aa56fde3934fe5b561856994e799f9cb4b9299 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 17:00:55 +0000
+Subject: [PATCH] arm64: dts: qcom: msm8994: per-cluster PMUs; octagon: disable
+ NFC (pn547)
+
+Found by: reading the full-DT boot log (7.3-rc2 on the phone) end to end.
+Two things the log showed that were not labelled as errors:
+
+1. "Number of cores (8) exceeds configured maximum of 6 - clipping" and
+   "CPU node for /cpus/cpu@102 exist but the possible cpu range is :0-5".
+   The Lumia 950 XL (MSM8994) has 4xA53 + 4xA57; the config inherited from
+   the Lumia 950 (MSM8992, 4xA53 + 2xA57) had CONFIG_NR_CPUS=6 so two A57
+   cores were dropped (config change is in kernel/ztos-lumia.config).
+
+2. Only one pmu node (cortex-a53-pmu, CPU mask 4) existed, so the A57
+   cluster had no PMU. Split into pmu-a53 (cpu0-3) and pmu-a57 (cpu4-7)
+   using interrupt-affinity.
+
+NFC: the pn544 driver waited ~33 s for the nfc_en polarity (no back cover
+= no antenna on the test unit) and blocked the I2C controller probe that
+whole time. The node is disabled for now; remove status = "disabled" once
+the cover is fitted.
+
+(No reference project used; found on the phone.)
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ .../boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi     |  2 ++
+ arch/arm64/boot/dts/qcom/msm8994.dtsi                 | 11 +++++++++--
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+index 5735d4f8d21..fccfeeefa7e 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+@@ -601,6 +601,8 @@ &blsp1_i2c6 {
+ 
+ 	pn547: pn547@28 {
+ 		compatible = "nxp,pn544-i2c";
++		/* back cover (NFC antenna) not fitted on the test unit; probe blocks ~33 s */
++		status = "disabled";
+ 
+ 		reg = <0x28>;
+ 
+diff --git a/arch/arm64/boot/dts/qcom/msm8994.dtsi b/arch/arm64/boot/dts/qcom/msm8994.dtsi
+index fdbb6d69ef1..8e502903f7e 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8994.dtsi
+@@ -171,9 +171,16 @@ memory@80000000 {
+ 		reg = <0 0x80000000 0 0>;
+ 	};
+ 
+-	pmu {
++	pmu-a53 {
+ 		compatible = "arm,cortex-a53-pmu";
+-		interrupts = <GIC_PPI 7 (GIC_CPU_MASK_SIMPLE(4)| IRQ_TYPE_LEVEL_HIGH)>;
++		interrupts = <GIC_PPI 7 IRQ_TYPE_LEVEL_HIGH>;
++		interrupt-affinity = <&cpu0>, <&cpu1>, <&cpu2>, <&cpu3>;
++	};
++
++	pmu-a57 {
++		compatible = "arm,cortex-a57-pmu";
++		interrupts = <GIC_PPI 7 IRQ_TYPE_LEVEL_HIGH>;
++		interrupt-affinity = <&cpu4>, <&cpu5>, <&cpu6>, <&cpu7>;
+ 	};
+ 
+ 	psci {
+-- 
+2.43.0
+

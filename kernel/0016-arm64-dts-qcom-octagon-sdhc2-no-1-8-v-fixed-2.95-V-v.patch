@@ -1,0 +1,40 @@
+From ed17cd07457c27e0b8731ef7222e1069b01b7fc0 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 12:45:08 +0000
+Subject: [PATCH] arm64: dts: qcom: octagon: sdhc2 no-1-8-v (fixed 2.95 V
+ vqmmc)
+
+Found by: SSH dmesg from the running rescue: the SD card is set up as
+"UHS-I speed DDR50", then every ~60 s "mmc2: Timeout waiting for hardware
+interrupt" (Cmd 0x063a = CMD6, ADMA Err 3) and ios falls back to
+3.3 V high-speed.
+
+What was wrong before: vqmmc-supply is l13a_2p95, a fixed ~2.95 V rail
+that cannot switch to 1.8 V, yet sdhci advertised UHS-I, so the
+card was put into DDR50 and the periodic retune failed. no-1-8-v keeps
+the slot at 3.3 V high-speed. (No reference project used; found on the
+phone.)
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+index f4ebd7bc032..5735d4f8d21 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+@@ -1172,6 +1172,10 @@ &sdhc2 {
+ 	vqmmc-supply = <&vreg_l13a_2p95>;
+ 
+ 	cd-gpios = <&pm8994_gpios 8 GPIO_ACTIVE_LOW>;
++
++	/* vqmmc (l13a) is fixed 2.95 V: UHS-I 1.8 V signalling cannot work; the card negotiated DDR50 and then
++	 * timed out on the periodic retune CMD6 (SDHCI timeout every ~60 s). Stay at 3.3 V high-speed. */
++	no-1-8-v;
+ };
+ 
+ &adsp_pil {
+-- 
+2.43.0
+
