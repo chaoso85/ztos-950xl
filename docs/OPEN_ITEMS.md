@@ -24,7 +24,7 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 - [ ] Gecikmeler: fuel gauge probe ~19,8 sn, RPM regülatörleri ~8,3 sn, vadc + `spurious spmi irq apid=158` WARN.
 - [x] `FW_LOADER_USER_HELPER(_FALLBACK)` kapatıldı: eksik firmware artık 60 sn beklemiyor (denenmedi).
 - [ ] Bluetooth ROME/QCA6390 0xfc00 timeout; ses: ADSP firmware (`qcadsp8994.mbn`) ve `regulatory.db` yok.
-- [ ] `keep_bootcon` olmadan zamanlaması gerçekçi bir günlük al (efifb erken zaman damgalarını ~40 kat şişiriyor).
+- [ ] `keep_bootcon` olmadan zamanlaması gerçekçi bir günlük al (grub.cfg'den kaldırıldı 2026-11-08; donanımda henüz alınmadı).
 - [ ] "Volume was not properly unmounted" safe-reboot sonrası da çıkıyor; nedeni bulunamadı.
 - [ ] `ztos-lumia.config` artık izleme (ftrace/tracefs) seçeneklerini içeriyor; kararlı sürümde kapatılmalı.
 

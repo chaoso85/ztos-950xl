@@ -9,8 +9,8 @@ stock UEFI (eMMC) -> rEFInd -> GRUB arm64-efi (SD: \EFI\BOOT\BOOTAA64.EFI) -> Li
 ```
 
 - Windows (eMMC) değiştirilmedi; GRUB menüsünde "Windows (eMMC)" girişi `bootmgfw_real.efi`'ye zincirler.
-- GRUB'da `loadenv/save_env` modülleri yok, yani tek seferlik açılış seçimi yapılamıyor; giriş 7 sn'lik menüden elle seçilir (varsayılan 0 = SAFE).
-- Girişler (`rescue/grub.cfg`): SAFE (DWC3), FULL DT (ekran/GPU açık, `keep_bootcon`), SAFE-ChipIdea, Windows.
+- GRUB'da `loadenv/save_env` modülleri yok, yani tek seferlik açılış seçimi yapılamıyor; giriş 7 sn'lik menüden elle seçilir (varsayılan 0 = FULL DT).
+- Girişler (`rescue/grub.cfg`, 2026-11-08 sadeleştirildi): FULL DT (ekran/GPU açık), FULL DT msm DRM kapalı (ekran sorununu ayırmak için), Windows. SAFE/SAFE-ChipIdea girdileri ve DTB'leri SD'den kaldırıldı (DTS'ler kaynak ağacında duruyor).
 
 ## 2. USB gadget: kurtarma kabuğu (doğrulandı)
 
@@ -100,5 +100,5 @@ Synaptics S3708AR dokunmatik (RMI4), güç/resin tuşları, hall sensörü, baro
    boot'u (#12) init'e ancak 312 s'de ulaştı. FULL DT girdisinden kaldırıldı, grub.cfg'de uyarı notu var; FULL DT artık
    varsayılan girdi.
 
-SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-cityman{,-safe,-safe-ci}.dtb, logs}`;
+SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-cityman.dtb, logs}`;
 `update_sd.ps1` bunları yazar, hash + grub.cfg referanslarını doğrular, eski dosyaları siler.
