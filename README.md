@@ -76,7 +76,7 @@ Legend: ✅ builds / data ready · 🟡 code exists upstream-in-fork, needs clea
 ## Repository layout
 
 ```
-kernel/            Patch series (0001-0020; 0018-0020 not yet tested on the phone) on top of Android4Lumia950/linux master, kernel .config, built DTBs
+kernel/            Patch series (0001-0022; 0021-0022 not yet tested on the phone) on top of Android4Lumia950/linux master, kernel .config, built DTBs
 rescue/            Rescue initramfs (init, USB gadget, SSH), GRUB menu, SD/ESP preparation scripts
 docs/research/     Findings (hardware gaps, GPU/camera report, fork analysis, ACPI device map, camera config)
 ```

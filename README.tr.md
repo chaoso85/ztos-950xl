@@ -76,7 +76,7 @@ Açıklama: ✅ derleniyor / veri hazır · 🟡 çatalda kod var, temizlik gere
 ## Depo yapısı
 
 ```
-kernel/            Android4Lumia950/linux master üstüne yama serisi (0001-0020; 0018-0020 telefonda henüz denenmedi), kernel .config, derlenmiş DTB'ler
+kernel/            Android4Lumia950/linux master üstüne yama serisi (0001-0022; 0021-0022 telefonda henüz denenmedi), kernel .config, derlenmiş DTB'ler
 rescue/            Kurtarma initramfs'i (init, USB gadget, SSH), GRUB menüsü, SD/ESP hazırlama betikleri
 docs/research/     Bulgular (donanım boşlukları, GPU/kamera raporu, çatal analizi, ACPI cihaz haritası, kamera ayarları)
 ```

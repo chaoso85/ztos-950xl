@@ -119,3 +119,14 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
   `l2: bypassed regulator has no supply`, i2c_qup f9967000 tx DMA yok, rmi4 vio / zpa2326 vref / DSI lab/ibb / adreno vdd,vddcx dummy.
 - Bu açılıştan önceki açılış kendiliğinden yeniden başladı; `dmesg-prev.txt` oluşmadı (init'e ulaşmamış) ve pstore boş
   (ramoops belleği yeniden başlatmada korunmuyor). Nedeni bilinmiyor; kamera tuşu da reboot tetikleyebiliyor (talkman).
+
+## 7. 2026-11-09: 0021/0022 ve ADSP firmware notu
+
+- 0021 (clk core): orphan yeniden-ebeveynlemede CLK_OPS_PARENT_ENABLE dansı atlanıyor → 0018'in 6 "already disabled" WARN'ı için.
+- 0022: ad7147 (sideinteraction) düğümü kapatıldı; sürücüde DT desteği yok.
+- SD'de yedek: `Image.prev` + `msm8994-msft-lumia-octagon-cityman.prev.dtb` ("PREVIOUS build" GRUB girdisi) = son çalışan build.
+- ADSP: `qcadsp8994.mbn` Windows'un kendi imzalı dosyası (FFU: `mainos/Windows/System32`, 10 149 719 bayt, birleşik 32-bit ELF,
+  19 segment, 0x0c800000–0x0e000000 = 24 MiB, segmentler relocatable). DT'deki `adsp_mem` (0x0ca00000, 24 MiB) boyut olarak
+  uyuyor; `firmware-name` zaten Windows adıyla aynı. Dosya imzalı (TZ doğruluyor) → biz yazamayız/değiştiremeyiz, sadece
+  kullanıcının kendi FFU'sundan alınıp kullanılabilir; depoya konmaz. Ses için ayrıca WCD9330 (SLIMbus), TAS2552 ve
+  q6 APR/AFE yolu gerekiyor; `.acdb` kalibrasyon dosyaları mainline'da kullanılmıyor.
