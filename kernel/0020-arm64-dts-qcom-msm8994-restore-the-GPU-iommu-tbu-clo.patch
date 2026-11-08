@@ -1,0 +1,44 @@
+From 286c7657c550b1058cb3d820f8d266871fa7cf02 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 19:25:47 +0000
+Subject: [PATCH] arm64: dts: qcom: msm8994: restore the GPU iommu tbu clock
+
+Part of the reference project used: drivers/iommu/arm/arm-smmu/qcom_iommu.c (qcom_iommu_resume comment
+"Do not uncollapse at bind (flag is clear; clk_bulk still fails)") and the original msm8994.dtsi gpu_iommu
+clocks (iface + tbu).
+Before: 0019 dropped tbu (OXILI_GFX3D_CLK) to silence the 'stuck at off' WARN. clk_bulk_prepare_enable() then
+succeeded at bind with GX collapsed, qcom_iommu_resume() went on to reset_ns/BFB writes into the GPU SMMU and
+the CPU hung (RCU stall on CPU5 right after the RPM regulators probe, init never started). The WARN is the
+expected, harmless outcome of that failing enable.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ arch/arm64/boot/dts/qcom/msm8994.dtsi | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994.dtsi b/arch/arm64/boot/dts/qcom/msm8994.dtsi
+index dfbd10403c7..e77011e9ab1 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8994.dtsi
+@@ -834,9 +834,15 @@ gpu_iommu: iommu@fdb10000 {
+ 			#iommu-cells = <1>;
+ 			ranges = <0 0xfdb18000 0x2000>;
+ 
+-			/* "tbu" (OXILI_GFX3D_CLK) needs the GX domain, which is off when the iommu probes */
+-			clocks = <&mmcc OXILICX_AHB_CLK>;
+-			clock-names = "iface";
++			/*
++			 * Keep "tbu" (OXILI_GFX3D_CLK) even though it cannot be enabled while GX is off:
++			 * qcom_iommu_resume() relies on clk_bulk_prepare_enable() failing at bind so it
++			 * does not touch the SMMU (reset_ns/BFB) with GX collapsed. Without it the
++			 * register writes hang the CPU (RCU stall right after the RPM regulators probe).
++			 */
++			clocks = <&mmcc OXILICX_AHB_CLK>,
++				 <&mmcc OXILI_GFX3D_CLK>;
++			clock-names = "iface", "tbu";
+ 			power-domains = <&mmcc OXILI_CX_GDSC>;
+ 
+ 			/* GFX3D_USER */
+-- 
+2.43.0
+

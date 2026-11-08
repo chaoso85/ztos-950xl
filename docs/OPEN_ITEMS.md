@@ -15,7 +15,7 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 
 ## 1b. Tam-DT açılış günlüğünden çıkanlar (2026-11-08, ayrıntı: `research/BRINGUP_LOG.md`)
 - [ ] (!) **Ekran yanmıyor** (düzeltme yazıldı, cihazda denenmedi: patch 0018 `CLK_OPS_PARENT_ENABLE`): DSI açılırken `pclk0/1`, `byte0/1_clk_src` "rcg didn't update its configuration" (DSI PHY PLL çalışmıyor); `pp done time out, lm=2`. Sıra: PHY PLL / piksel saati.
-- [ ] **GPU** (iommu `tbu` saati DT'den çıkarıldı, patch 0019; firmware initramfs'e `build_initramfs.sh ... fw/` ile giriyor, depoda yok; denenmedi): `a420_pm4.fw` / `a420_pfp.fw` initramfs'te yok (61 sn bekleme); `oxili_gfx3d_clk` stuck (GPU iommu resume, GX güç alanı); adreno `vdd`/`vddcx` ve DSI `lab_reg`/`ibb_reg` DT'de yok; GPU cooling device kaydı başarısız.
+- [ ] **GPU** (0019 iommu `tbu` saatini çıkardı → GX kapalıyken SMMU yazması CPU'yu kilitledi; 0020 geri koydu, `stuck at 'off'` uyarısı beklenen; firmware initramfs'e `build_initramfs.sh ... fw/` ile giriyor, depoda yok; denenmedi): `a420_pm4.fw` / `a420_pfp.fw` initramfs'te yok (61 sn bekleme); `oxili_gfx3d_clk` stuck (GPU iommu resume, GX güç alanı); adreno `vdd`/`vddcx` ve DSI `lab_reg`/`ibb_reg` DT'de yok; GPU cooling device kaydı başarısız.
 - [ ] `fb0: framebuffer is not in virtual address space` (fbcon msm fbdev'e geçerken).
 - [x] `NR_CPUS` 6 -> 8 (950 XL 4xA57+4xA53) ve A53/A57 için ayrı PMU (patch 0017). Cihazda henüz denenmedi.
 - [x] NFC (pn547) DT'de kapatıldı: arka kapak yokken polarite tespiti 33 sn bloklıyordu. Kapak takılınca `status = "disabled"` kaldırılacak.

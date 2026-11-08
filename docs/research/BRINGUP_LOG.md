@@ -89,11 +89,16 @@ Synaptics S3708AR dokunmatik (RMI4), güç/resin tuşları, hall sensörü, baro
 3. DT temizliği: si470x, fan53555, ad714x, mpu6050, ccs kapat; tsl2772 supply'ları
 4. `keep_bootcon`'u kaldırıp zamanlaması gerçekçi günlük almak
 
-## 5. Ders: keep_bootcon = 10–25 dakikalık boot (2026-11-08)
+## 5. 2026-11-08: FULL DT boot 998 s'de hâlâ init'e ulaşmadı — iki ayrı neden
 
-- `keep_bootcon` efifb boot konsolunu açık tutar; her satır ~80 ms sürer (normalde ~1 ms). initcall_debug ile binlerce satır
-  yazılınca boot 10–25 dk sürer; init (USB gadget + SD log) ancak bundan sonra başlar. Videoda görülen "RCU stall CPU5 / timer
-  wakeup didn't happen" konsol yazdırma yükünün sonucuydu, donanım kilitlenmesi değil (eski dmesg-boot.txt de init'e 1412 s'de ulaşmış).
-- Çözüm: FULL DT girdisinden keep_bootcon kaldırıldı (grub.cfg'de uyarı notu var); FULL DT artık varsayılan girdi.
-- SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-cityman{,-safe,-safe-ci}.dtb, logs}`;
-  `update_sd.ps1` bunları yazar, hash + grub.cfg referanslarını doğrular, eski dosyaları siler.
+1. **Gerçek kilitlenme (0019 kaynaklı):** 0019, GPU iommu'dan `tbu` (OXILI_GFX3D_CLK) clock'unu çıkardı. Referans
+   `qcom_iommu_resume()` bind sırasında `clk_bulk_prepare_enable()`'ın bu clock yüzünden başarısız olmasına güveniyor
+   ("clk_bulk still fails"); başarısız olunca SMMU'ya dokunmadan dönüyor. tbu kalkınca enable başarılı oldu, GX kapalıyken
+   reset_ns/BFB yazmaları yapıldı ve CPU5 bus'ta kilitlendi: RPM regülatör probe'undan (139.7 s) hemen sonra RCU stall,
+   init hiç başlamadı. 0020 tbu'yu geri koydu; `stuck at 'off'` uyarısı beklenen ve zararsız sonuç.
+2. **Yavaşlık:** `keep_bootcon` efifb boot konsolunu açık tutuyor; satır başına ~80 ms (normalde ~1 ms). Eski FULL DT
+   boot'u (#12) init'e ancak 312 s'de ulaştı. FULL DT girdisinden kaldırıldı, grub.cfg'de uyarı notu var; FULL DT artık
+   varsayılan girdi.
+
+SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-cityman{,-safe,-safe-ci}.dtb, logs}`;
+`update_sd.ps1` bunları yazar, hash + grub.cfg referanslarını doğrular, eski dosyaları siler.
