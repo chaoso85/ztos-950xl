@@ -54,6 +54,19 @@ if [ -n "$SDLOG" ]; then
   fi
 fi
 
+# safe reboot: stop the SD log writers, sync, unmount, then reset. NEVER hard-reset while the FAT SD is mounted
+# rw and being written (that destroyed the card's root directory once).
+cat > /sbin/safe-reboot <<'EOS'
+#!/bin/sh
+pkill -f 'cat /proc/kmsg' 2>/dev/null; pkill -f trace_pipe 2>/dev/null; pkill -f 'sync; sleep 2' 2>/dev/null
+sleep 1; sync; sync
+umount /mnt/sd 2>/dev/null || mount -o remount,ro /mnt/sd 2>/dev/null
+sync
+echo u > /proc/sysrq-trigger; sleep 1
+echo b > /proc/sysrq-trigger
+EOS
+chmod +x /sbin/safe-reboot
+
 log() { echo "[rescue] $*" | tee -a /dev/kmsg >/dev/null 2>&1; echo "[rescue] $*"; }
 log "init start, kernel $(uname -r)"
 
