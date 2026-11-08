@@ -102,3 +102,20 @@ Synaptics S3708AR dokunmatik (RMI4), güç/resin tuşları, hall sensörü, baro
 
 SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-cityman.dtb, logs}`;
 `update_sd.ps1` bunları yazar, hash + grub.cfg referanslarını doğrular, eski dosyaları siler.
+
+## 6. 2026-11-09: FULL DT ilk temiz açılış (build #14 + 0020 DTB, keep_bootcon yok)
+
+- 8 CPU, init 32.3 s, USB/SSH 34.6 s, SD log çalışıyor. **Ekran msm DRM ile 1440x2560 çalışıyor** (DSI-1 connected/enabled,
+  fb0 = msmdrmfb, DSI0 VCO 1.446 GHz, pclk 120.49 MHz). a420 firmware initramfs'ten yüklendi.
+- Boot süresinin çoğu: fuel gauge probe'u 19.7 s (3.0 → 20.7 s), deferred probe 8.3 s, RPM regülatörleri 2.3 s, GPU iommu 2.3 s,
+  DSI PHY 2.8 s (uyarı trace'leri yazdırılırken), panel 1.0 s.
+- 0018 yan etkisi: DSI PHY clock provider kaydında orphan RCG'ler yeniden ebeveynlenirken `__clk_set_parent_before()`
+  CLK_OPS_PARENT_ENABLE için `clk_core_prepare_enable()` çağırıyor; PHY henüz açık olmadığı için VCO prepare başarısız, hata
+  yok sayılıyor, `_after()` disable/unprepare yapınca 6 adet "dsi0pll(byte) already disabled/unprepared" WARN. Sayaçlar 0'da
+  kalıyor (zararsız) ama düzeltilmeli.
+- Diğer: `pp done time out, lm=2` (bir kez), `fb0: ... not in virtual address space` (konsol yine de çalışıyor),
+  ad714x "platform data doesn't exist" -22 (sürücüde DT desteği yok → düğüm kapatılmalı), spurious SPMI irq apid=158,
+  BT QCA 0xfc00 timeout ×4, qcadsp8994.mbn yok → ses kartı yok, regulatory.db yok, psci-cpuidle -ENODEV,
+  `l2: bypassed regulator has no supply`, i2c_qup f9967000 tx DMA yok, rmi4 vio / zpa2326 vref / DSI lab/ibb / adreno vdd,vddcx dummy.
+- Bu açılıştan önceki açılış kendiliğinden yeniden başladı; `dmesg-prev.txt` oluşmadı (init'e ulaşmamış) ve pstore boş
+  (ramoops belleği yeniden başlatmada korunmuyor). Nedeni bilinmiyor; kamera tuşu da reboot tetikleyebiliyor (talkman).
