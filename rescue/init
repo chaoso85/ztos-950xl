@@ -70,17 +70,25 @@ if [ -n "$UDC" ]; then
   mkdir -p $G && cd $G
   echo 0x1d6b > idVendor; echo 0x0104 > idProduct   # Linux Foundation / Multifunction Composite
   echo 0x0100 > bcdDevice; echo 0x0200 > bcdUSB
+  echo 0xef > bDeviceClass; echo 0x02 > bDeviceSubClass; echo 0x01 > bDeviceProtocol   # IAD composite
   mkdir -p strings/0x409
-  echo "ztos-950xl-rescue" > strings/0x409/serialNumber
+  # NOTE: the configfs attribute is lower-case "serialnumber"; "serialNumber" fails silently and leaves an
+  # EMPTY string descriptor, which Windows rejects (Code 10 / NO_SUCH_DEVICE) right after Get String(3).
+  echo "ztos950xl"         > strings/0x409/serialnumber
   echo "ztOS"              > strings/0x409/manufacturer
   echo "Lumia 950 XL rescue" > strings/0x409/product
-  mkdir -p configs/c.1/strings/0x409; echo "ACM+ECM" > configs/c.1/strings/0x409/configuration
+  mkdir -p configs/c.1/strings/0x409; echo "ACM+RNDIS" > configs/c.1/strings/0x409/configuration
   echo 250 > configs/c.1/MaxPower
-  mkdir -p functions/acm.usb0 functions/ecm.usb0
-  echo 02:5a:74:05:00:01 > functions/ecm.usb0/host_addr
-  echo 02:5a:74:05:00:02 > functions/ecm.usb0/dev_addr
+  mkdir -p functions/acm.usb0 functions/rndis.usb0
+  echo 02:5a:74:05:00:01 > functions/rndis.usb0/host_addr
+  echo 02:5a:74:05:00:02 > functions/rndis.usb0/dev_addr
+  # Microsoft OS descriptors so Windows binds its built-in RNDIS driver (as in Davitekk/ztOS talkman gadget)
+  echo 1 > os_desc/use; echo 0xcd > os_desc/b_vendor_code; echo MSFT100 > os_desc/qw_sign
+  echo RNDIS > functions/rndis.usb0/os_desc/interface.rndis/compatible_id
+  echo 5162001 > functions/rndis.usb0/os_desc/interface.rndis/sub_compatible_id
   ln -s functions/acm.usb0 configs/c.1/
-  ln -s functions/ecm.usb0 configs/c.1/
+  ln -s functions/rndis.usb0 configs/c.1/
+  ln -s configs/c.1 os_desc/
   echo "$UDC" > UDC && log "gadget bound to $UDC"
   cd /
   sleep 2
