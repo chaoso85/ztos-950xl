@@ -1,0 +1,66 @@
+From a49f6d34d8c1bf0efde23ad65eab7d4f7207be1b Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 21:34:04 +0000
+Subject: [PATCH] power: reset: qcom-pon / watchdog: qcom: log PMIC reset
+ reasons and the boot state of the APSS watchdog
+
+Part of the reference project used: none (diagnostics; mmo_defconfig leaves CONFIG_QCOM_WDT off).
+Before: every GRUB entry (including the build that booted fine the day before) reset at ~30 s with no
+log left behind, and nothing in the log said whether the PMIC saw a watchdog bite, PS_HOLD drop, UVLO or
+key reset, or whether firmware had left the APSS watchdog armed. CONFIG_QCOM_WDT is now enabled so the
+kernel pings the watchdog if it was left running (WATCHDOG_HANDLE_BOOT_ENABLED=y).
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ drivers/power/reset/qcom-pon.c | 15 +++++++++++++++
+ drivers/watchdog/qcom-wdt.c    |  7 +++++++
+ 2 files changed, 22 insertions(+)
+
+diff --git a/drivers/power/reset/qcom-pon.c b/drivers/power/reset/qcom-pon.c
+index 7e108982a58..b43ec3f2a8c 100644
+--- a/drivers/power/reset/qcom-pon.c
++++ b/drivers/power/reset/qcom-pon.c
+@@ -67,6 +67,21 @@ static int qcom_pon_probe(struct platform_device *pdev)
+ 	if (error)
+ 		return error;
+ 
++	/*
++	 * ztOS bring-up: log why the PMIC last powered on / reset (gen1 PON:
++	 * PON_REASON1 0x08, WARM_RESET_REASON1/2 0x0a/0x0b, POFF_REASON1/2
++	 * 0x0c/0x0d, SOFT_RESET_REASON1/2 0x0e/0x0f) so an unexplained reboot
++	 * can be told apart (watchdog bite, PS_HOLD, UVLO, KPDPWR, ...).
++	 */
++	{
++		u8 r[8];
++
++		if (!regmap_bulk_read(pon->regmap, pon->baseaddr + 0x08, r, sizeof(r)))
++			dev_info(&pdev->dev,
++				 "reset reasons: pon %02x warm %02x %02x poff %02x %02x soft %02x %02x (0x09=%02x)\n",
++				 r[0], r[2], r[3], r[4], r[5], r[6], r[7], r[1]);
++	}
++
+ 	reason_shift = (long)of_device_get_match_data(&pdev->dev);
+ 
+ 	if (reason_shift != NO_REASON_SHIFT) {
+diff --git a/drivers/watchdog/qcom-wdt.c b/drivers/watchdog/qcom-wdt.c
+index 4eb1bf97901..764ad7a7b94 100644
+--- a/drivers/watchdog/qcom-wdt.c
++++ b/drivers/watchdog/qcom-wdt.c
+@@ -345,7 +345,14 @@ static int qcom_wdt_probe(struct platform_device *pdev)
+ 	 * might use different ones and set running bit
+ 	 * to inform the WDT subsystem to ping the WDT
+ 	 */
++	/* ztOS bring-up: show whether firmware left the APSS watchdog armed */
++	dev_info(dev, "at probe: EN=%#x STS=%#x BARK=%#x BITE=%#x (rate %lu Hz)\n",
++		 readl(wdt_addr(wdt, WDT_EN)), readl(wdt_addr(wdt, WDT_STS)),
++		 readl(wdt_addr(wdt, WDT_BARK_TIME)), readl(wdt_addr(wdt, WDT_BITE_TIME)),
++		 wdt->rate);
++
+ 	if (qcom_wdt_is_running(&wdt->wdd)) {
++		dev_warn(dev, "watchdog was left running by firmware, kernel will ping it\n");
+ 		qcom_wdt_start(&wdt->wdd);
+ 		set_bit(WDOG_HW_RUNNING, &wdt->wdd.status);
+ 	}
+-- 
+2.43.0
+

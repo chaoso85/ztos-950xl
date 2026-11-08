@@ -130,3 +130,11 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
   uyuyor; `firmware-name` zaten Windows adıyla aynı. Dosya imzalı (TZ doğruluyor) → biz yazamayız/değiştiremeyiz, sadece
   kullanıcının kendi FFU'sundan alınıp kullanılabilir; depoya konmaz. Ses için ayrıca WCD9330 (SLIMbus), TAS2552 ve
   q6 APR/AFE yolu gerekiyor; `.acdb` kalibrasyon dosyaları mainline'da kullanılmıyor.
+
+## 8. 2026-11-09: her girdi ~30 s'de reset (dünkü çalışan build dahil)
+
+- Windows normal açılıyor, pil %70. SD'de `dmesg-prev.txt` yok → bugünkü açılışların hiçbiri init'e (32 s) ulaşmadı.
+- Dün çalışan Image/DTB ile de reset olduğu için neden build'de değil; donanım/firmware durumuna bağlı bir şey.
+- Hipotez (doğrulanmadı): firmware'in bazen kurulu bıraktığı APSS watchdog'u (f9017000). CONFIG_QCOM_WDT kapalıydı
+  (referans mmo_defconfig'de de kapalı), yani kimse beslemiyordu. 0023: QCOM_WDT açık + probe'da EN/STS/BARK/BITE logu;
+  qcom-pon probe'unda PMIC reset nedenleri (PON/WARM/POFF/SOFT) logu.
