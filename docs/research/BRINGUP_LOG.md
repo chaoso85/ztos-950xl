@@ -88,3 +88,12 @@ Synaptics S3708AR dokunmatik (RMI4), güç/resin tuşları, hall sensörü, baro
 2. GPU iommu saati / güç alanı + `a420_pm4.fw`, `a420_pfp.fw` initramfs'e
 3. DT temizliği: si470x, fan53555, ad714x, mpu6050, ccs kapat; tsl2772 supply'ları
 4. `keep_bootcon`'u kaldırıp zamanlaması gerçekçi günlük almak
+
+## 5. Ders: keep_bootcon = 10–25 dakikalık boot (2026-11-08)
+
+- `keep_bootcon` efifb boot konsolunu açık tutar; her satır ~80 ms sürer (normalde ~1 ms). initcall_debug ile binlerce satır
+  yazılınca boot 10–25 dk sürer; init (USB gadget + SD log) ancak bundan sonra başlar. Videoda görülen "RCU stall CPU5 / timer
+  wakeup didn't happen" konsol yazdırma yükünün sonucuydu, donanım kilitlenmesi değil (eski dmesg-boot.txt de init'e 1412 s'de ulaşmış).
+- Çözüm: FULL DT girdisinden keep_bootcon kaldırıldı (grub.cfg'de uyarı notu var); FULL DT artık varsayılan girdi.
+- SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-cityman{,-safe,-safe-ci}.dtb, logs}`;
+  `update_sd.ps1` bunları yazar, hash + grub.cfg referanslarını doğrular, eski dosyaları siler.
