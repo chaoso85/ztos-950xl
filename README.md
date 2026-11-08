@@ -14,7 +14,7 @@
 
 </div>
 
-> **Status: early research.** Nothing here has been booted on a phone yet. The kernel builds; the rest is analysis, plans and data extracted from the stock firmware. Do not flash anything from this repo to your only device without a full eMMC backup.
+> **Status: early bring-up.** The kernel boots on the phone from an SD card; a rescue shell over USB (SSH) and the SD card work. Display, GPU, camera, audio and Wi-Fi do not work yet. Details: [`docs/research/BRINGUP_LOG.md`](docs/research/BRINGUP_LOG.md) (Turkish). Do not flash anything from this repo to your only device without a full eMMC backup.
 
 ## Goal
 
@@ -33,8 +33,8 @@ Run a real Linux phone OS on the Lumia 950 XL (RM-1085), without touching Window
 ## Architecture
 
 ```
-SD card  ──►  Windows-on-ARM UEFI (eMMC, untouched)
-                 │  GRUB / EFI stub
+SD card  ──►  Windows-on-ARM UEFI (eMMC, untouched) ──► rEFInd
+                 │  GRUB on the SD (\EFI\BOOT\BOOTAA64.EFI)
                  ▼
            Linux kernel (mainline + Lumia patches) + cityman DTB   (acpi=no, device tree)
                  │
@@ -48,26 +48,26 @@ Legend: ✅ builds / data ready · 🟡 code exists upstream-in-fork, needs clea
 
 | Subsystem | Status | Notes |
 |---|---|---|
-| eMMC / SD | ✅ ❔ | In mainline DT (HS200). |
-| Touch (Synaptics RMI4) | ✅ ❔ | In mainline DT. |
-| Display (dual DSI, Samsung-AMOLED-style command mode) | 🟡 ❔ | Panel `Sergej`; init sequence cross-checked against UEFI + downstream. 20nm DSI PHY and MDP5 dual-LM patches are "needs review". |
-| GPU (Adreno 430) | 🟡 ❔ | Recognised by `drm/msm` (chip id `0x04030002`). The fork carries dirty power-management workarounds that need root-causing. |
-| Camera | 🟡 ❔ | CAMSS 8x94 + CCI + 3 SMIA++ sensors in DT. Sensor driver (CCS) not working yet. |
-| USB gadget (rescue/SSH) | 🟡 ❔ | `usb3` + Lattice UC120 Type-C code exists; must be enabled and tested. **First boot blocker.** |
-| Charger / fuel gauge | 🟡 ❔ | SMBCHG + PMI8994 FG patches marked "needs review". |
-| Wi-Fi / Bluetooth | 🔴 | PCIe RP1 (Wi-Fi) not wired in DT; BT node exists. |
-| Audio | 🟡 ❔ | WCD9330 / TAS2552 / ADSP patches, "clean up later". |
+| eMMC / SD | ✅ | eMMC is visible (HS200, left untouched). SD works; `no-1-8-v` keeps it at 3.3 V high-speed (fixed 2.95 V vqmmc). |
+| Touch (Synaptics RMI4) | ✅ | S3708AR registers as an input device. |
+| Display (dual DSI, command mode) | 🟡 | MDP5 v1.9, DSI and panel `sergej` bind but the panel stays dark: pixel/byte clocks are reprogrammed while the DSI PHY PLL is not running, `pp done time out`. |
+| GPU (Adreno 430) | 🟡 | `drm/msm` binds; `a420_pm4.fw` missing, `oxili_gfx3d_clk` stuck off (iommu resume, GX power domain). |
+| Camera | 🟡 | CAMSS + CCI probe; the generic CCS driver does not work with the sensors (dummy supplies, CCI timeout). |
+| USB gadget (rescue/SSH) | ✅ | DWC3 + HS PHY (TCSR routing + LK QSCRATCH values). Windows sees ACM + RNDIS, SSH works. |
+| Charger / fuel gauge | 🟡 | SMBCHG and PMI8994 FG probe (battery ID is read); FG probe takes ~20 s. |
+| Wi-Fi / Bluetooth | 🔴 | PCIe RP1 (Wi-Fi) not wired in DT; BT ROME/QCA setup command times out. |
+| Audio | 🟡 | No sound card: ADSP firmware (`qcadsp8994.mbn`) missing, `msm-snd` deferred. |
 | Modem / SIM | 🔴 | ADSP loads, modem does not (per upstream notes). |
-| Sensors, haptics, NFC | 🔴 | Data in `docs/research/DEVICES.md`. |
+| Sensors, haptics, NFC | 🟡 | Hall, keys, barometer, magnetometer work; MPU6050 / light sensor do not answer. NFC is disabled in DT (without the back cover polarity detection blocks for 33 s). |
 
 ## Roadmap
 
 - [x] Feasibility study and ztOS architecture review
 - [x] Offline extraction and analysis of the stock FFU (ACPI, firmware inventory, panel, camera)
 - [x] Merge fork `master` + `camss` unique parts onto one tree; kernel + cityman DTB build
-- [ ] Enable `usb3` + UC120 → USB gadget rescue shell
-- [ ] First on-device boot from SD (efifb console)
-- [ ] Display + GPU: remove workarounds, proper runtime PM, `kmscube` / `glmark2-es2`
+- [x] Enable `usb3` + UC120 → USB gadget rescue shell (SSH works)
+- [x] First on-device boot from SD (efifb console)
+- [ ] Display + GPU (current work): remove workarounds, proper runtime PM, `kmscube` / `glmark2-es2`
 - [ ] ztOS GSI rootfs + `ztconflo` `uefi-esp` flash method + ztOSIAL manifest
 - [ ] Wi-Fi, audio, charging, sensors
 - [ ] Camera: CCS sensor bring-up, then AF/OIS/flash, libcamera
@@ -76,7 +76,8 @@ Legend: ✅ builds / data ready · 🟡 code exists upstream-in-fork, needs clea
 ## Repository layout
 
 ```
-kernel/            Patch on top of Android4Lumia950/linux master, kernel .config, built cityman DTB
+kernel/            Patch series (0001-0017) on top of Android4Lumia950/linux master, kernel .config, built DTBs
+rescue/            Rescue initramfs (init, USB gadget, SSH), GRUB menu, SD/ESP preparation scripts
 docs/research/     Findings (hardware gaps, GPU/camera report, fork analysis, ACPI device map, camera config)
 ```
 
@@ -87,9 +88,8 @@ Start with [`docs/research/PORTING_GAPS.md`](docs/research/PORTING_GAPS.md) and 
 ```sh
 git clone https://github.com/Android4Lumia950/linux && cd linux
 git checkout master
-git am /path/to/ztos-950xl/kernel/0001-*.patch
-make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- mmo_defconfig
-scripts/config -e DRM_PANEL_MICROSOFT_SERGEJ -e DRM_PANEL_MICROSOFT_DUKE -e VIDEO_CCS
+git am /path/to/ztos-950xl/kernel/00*.patch
+cp /path/to/ztos-950xl/kernel/ztos-lumia.config .config   # NR_CPUS=8, tracing on
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)" Image qcom/msm8994-msft-lumia-octagon-cityman.dtb
 ```

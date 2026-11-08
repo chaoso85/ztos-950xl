@@ -14,7 +14,7 @@
 
 </div>
 
-> **Durum: erken araştırma.** Burada hiçbir şey henüz telefonda açılmadı. Çekirdek derleniyor; geri kalanı analiz, plan ve orijinal yazılımdan çıkarılan veriler. Tam eMMC yedeği almadan bu depodaki hiçbir şeyi tek cihazınıza yüklemeyin.
+> **Durum: erken bring-up.** Çekirdek telefonda SD karttan açılıyor; USB üzerinden SSH ile kurtarma kabuğu ve SD kart çalışıyor. Ekran, GPU, kamera, ses, Wi-Fi henüz çalışmıyor. Ayrıntılar: [`docs/research/BRINGUP_LOG.md`](docs/research/BRINGUP_LOG.md). Tam eMMC yedeği almadan bu depodaki hiçbir şeyi tek cihazınıza yüklemeyin.
 
 ## Hedef
 
@@ -33,8 +33,8 @@ Lumia 950 XL (RM-1085) üzerinde gerçek bir Linux telefon işletim sistemi çal
 ## Mimari
 
 ```
-SD kart  ──►  Windows-on-ARM UEFI (eMMC'de, dokunulmaz)
-                 │  GRUB / EFI stub
+SD kart  ──►  Windows-on-ARM UEFI (eMMC'de, dokunulmaz) ──► rEFInd
+                 │  SD üzerindeki GRUB (\EFI\BOOT\BOOTAA64.EFI)
                  ▼
            Linux çekirdeği (mainline + Lumia yamaları) + cityman DTB   (acpi=no, device tree)
                  │
@@ -48,26 +48,26 @@ Açıklama: ✅ derleniyor / veri hazır · 🟡 çatalda kod var, temizlik gere
 
 | Alt sistem | Durum | Not |
 |---|---|---|
-| eMMC / SD | ✅ ❔ | Mainline DT'de (HS200). |
-| Dokunmatik (Synaptics RMI4) | ✅ ❔ | Mainline DT'de. |
-| Ekran (çift DSI, Samsung-AMOLED tarzı komut modu) | 🟡 ❔ | Panel `Sergej`; init dizisi UEFI ve downstream ile çapraz doğrulandı. 20nm DSI PHY ve MDP5 çift-LM yamaları "gözden geçirilecek". |
-| GPU (Adreno 430) | 🟡 ❔ | `drm/msm` tanıyor (chip id `0x04030002`). Çatalda kirli güç yönetimi geçici çözümleri var, kök nedene indirilmeli. |
-| Kamera | 🟡 ❔ | DT'de CAMSS 8x94 + CCI + 3 SMIA++ sensör. Sensör sürücüsü (CCS) henüz çalışmıyor. |
-| USB gadget (kurtarma/SSH) | 🟡 ❔ | `usb3` + Lattice UC120 Type-C kodu var; etkinleştirilip test edilmeli. **İlk açılış engeli.** |
-| Şarj / fuel gauge | 🟡 ❔ | SMBCHG + PMI8994 FG yamaları "gözden geçirilecek". |
-| Wi-Fi / Bluetooth | 🔴 | PCIe RP1 (Wi-Fi) DT'ye bağlı değil; BT düğümü var. |
-| Ses | 🟡 ❔ | WCD9330 / TAS2552 / ADSP yamaları, "sonra temizlenecek". |
+| eMMC / SD | ✅ | eMMC görünüyor (HS200, dokunulmadı). SD çalışıyor; `no-1-8-v` ile 3.3 V yüksek hız (sabit 2.95 V vqmmc). |
+| Dokunmatik (Synaptics RMI4) | ✅ | S3708AR giriş aygıtı olarak kayıt oluyor. |
+| Ekran (çift DSI, komut modu) | 🟡 | MDP5 v1.9, DSI ve panel `sergej` bağlanıyor ama ışık yok: DSI PHY PLL çalışmadan pclk/byte saatleri ayarlanıyor, `pp done time out`. |
+| GPU (Adreno 430) | 🟡 | `drm/msm` bağlanıyor; `a420_pm4.fw` yok, `oxili_gfx3d_clk` takılı (iommu resume, GX güç alanı). |
+| Kamera | 🟡 | CAMSS + CCI probe oluyor; genel CCS sürücüsü sensörlerle çalışmıyor (dummy supply, CCI timeout). |
+| USB gadget (kurtarma/SSH) | ✅ | DWC3 + HS PHY (TCSR yönlendirme + LK QSCRATCH değerleri). Windows ACM + RNDIS görüyor, SSH çalışıyor. |
+| Şarj / fuel gauge | 🟡 | SMBCHG ve PMI8994 FG probe oluyor (pil ID okunuyor); FG probe ~20 sn sürüyor. |
+| Wi-Fi / Bluetooth | 🔴 | PCIe RP1 (Wi-Fi) DT'ye bağlı değil; BT ROME/QCA setup komutu timeout veriyor. |
+| Ses | 🟡 | Ses kartı yok: ADSP firmware (`qcadsp8994.mbn`) eksik, `msm-snd` ertelenmiş. |
 | Modem / SIM | 🔴 | ADSP yükleniyor, modem yüklenmiyor (upstream notlarına göre). |
-| Sensörler, titreşim, NFC | 🔴 | Veriler `docs/research/DEVICES.md` içinde. |
+| Sensörler, titreşim, NFC | 🟡 | Hall, tuşlar, barometre, manyetometre çalışıyor; MPU6050/ışık sensörü yanıt vermiyor. NFC DT'de kapalı (arka kapak yokken polarite tespiti 33 sn bloklar). |
 
 ## Yol haritası
 
 - [x] Fizibilite çalışması ve ztOS mimari incelemesi
 - [x] Orijinal FFU'nun çevrimdışı çıkarımı ve analizi (ACPI, firmware envanteri, panel, kamera)
 - [x] Çatal `master` + `camss` benzersiz parçaları tek ağaçta birleştirildi; çekirdek + cityman DTB derleniyor
-- [ ] `usb3` + UC120'yi etkinleştir → USB gadget kurtarma kabuğu
-- [ ] SD karttan ilk cihaz üstü açılış (efifb konsolu)
-- [ ] Ekran + GPU: geçici çözümleri kaldır, düzgün runtime PM, `kmscube` / `glmark2-es2`
+- [x] `usb3` + UC120'yi etkinleştir → USB gadget kurtarma kabuğu (SSH çalışıyor)
+- [x] SD karttan ilk cihaz üstü açılış (efifb konsolu)
+- [ ] Ekran + GPU (şu an burada): geçici çözümleri kaldır, düzgün runtime PM, `kmscube` / `glmark2-es2`
 - [ ] ztOS GSI rootfs + `ztconflo` `uefi-esp` flash yöntemi + ztOSIAL manifest
 - [ ] Wi-Fi, ses, şarj, sensörler
 - [ ] Kamera: CCS sensör bring-up, ardından AF/OIS/flaş, libcamera
@@ -76,7 +76,8 @@ Açıklama: ✅ derleniyor / veri hazır · 🟡 çatalda kod var, temizlik gere
 ## Depo yapısı
 
 ```
-kernel/            Android4Lumia950/linux master üstüne yama, kernel .config, derlenmiş cityman DTB
+kernel/            Android4Lumia950/linux master üstüne yama serisi (0001-0017), kernel .config, derlenmiş DTB'ler
+rescue/            Kurtarma initramfs'i (init, USB gadget, SSH), GRUB menüsü, SD/ESP hazırlama betikleri
 docs/research/     Bulgular (donanım boşlukları, GPU/kamera raporu, çatal analizi, ACPI cihaz haritası, kamera ayarları)
 ```
 
@@ -87,9 +88,8 @@ Başlangıç için [`docs/research/PORTING_GAPS.md`](docs/research/PORTING_GAPS.
 ```sh
 git clone https://github.com/Android4Lumia950/linux && cd linux
 git checkout master
-git am /yol/ztos-950xl/kernel/0001-*.patch
-make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- mmo_defconfig
-scripts/config -e DRM_PANEL_MICROSOFT_SERGEJ -e DRM_PANEL_MICROSOFT_DUKE -e VIDEO_CCS
+git am /yol/ztos-950xl/kernel/00*.patch
+cp /yol/ztos-950xl/kernel/ztos-lumia.config .config   # NR_CPUS=8, izleme açık
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)" Image qcom/msm8994-msft-lumia-octagon-cityman.dtb
 ```
