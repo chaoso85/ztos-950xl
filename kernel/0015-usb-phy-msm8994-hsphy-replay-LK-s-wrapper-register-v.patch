@@ -1,0 +1,89 @@
+From 08f6fb2580cecd3742e400aefd5bb991514d2662 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sat, 7 Nov 2026 21:36:42 +0000
+Subject: [PATCH] usb: phy: msm8994 hsphy: replay LK's wrapper register values
+ (qcom,lk-wrapper-regs)
+
+Used from: Davitekk/ztOS branch talkman-port,
+devices/microsoft-talkman/kernel/patch-dwc3-usb-sel.py (itself taken from
+LK usb30_wrapper.c): after LK/fastboot the Lumia 950 enumerates, booted
+directly it stays "not attached" until HS_PHY_CTRL (0x10), override (0x14),
+COMMON (0xec) and SS_PHY_CTRL (0x30) hold LK's values.
+
+What was wrong before: we only OR-ed a few bits into HS_PHY_CTRL
+(read back 0x1f3259b2 instead of LK's 0x1c302800) and never wrote
+SS_PHY_CTRL at all. New optional DT property writes all four verbatim;
+values are the talkman ones and still need confirming on cityman.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ .../dts/qcom/msm8994-msft-lumia-octagon.dtsi  |  1 +
+ drivers/usb/phy/phy-msm8994-hsusb.c           | 19 +++++++++++++++++++
+ 2 files changed, 20 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+index 70610f26411..f4ebd7bc032 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon.dtsi
+@@ -794,6 +794,7 @@ &usb3_hsphy {
+ 	vdda33-supply = <&vreg_l24a_3p075>;
+ 	qcom,hsphy-init = <0x00d1d9a4>;
+ 	qcom,set-pllbtune;
++	qcom,lk-wrapper-regs = <0x1c302800 0x00d190e4 0x0071dc88 0x71210102>;
+ };
+ 
+ &usb3_dwc3 {
+diff --git a/drivers/usb/phy/phy-msm8994-hsusb.c b/drivers/usb/phy/phy-msm8994-hsusb.c
+index 4be637e72ab..54e9bcccc74 100644
+--- a/drivers/usb/phy/phy-msm8994-hsusb.c
++++ b/drivers/usb/phy/phy-msm8994-hsusb.c
+@@ -22,6 +22,7 @@
+ /* QSCRATCH offsets */
+ #define HS_PHY_CTRL			0x10
+ #define PARAMETER_OVERRIDE_X		0x14
++#define SS_PHY_CTRL			0x30
+ #define HS_PHY_CTRL_COMMON		0xec	/* core version >= 1.2 */
+ 
+ #define HS_RETENABLEN			BIT(1)
+@@ -50,6 +51,8 @@ struct msm8994_hsphy {
+ 	struct regulator *vdda33;
+ 	u32 init_seq;
+ 	bool set_pllbtune;
++	bool has_lk_regs;
++	u32 lk_regs[4];
+ };
+ 
+ static int msm8994_hsphy_init(struct usb_phy *uphy)
+@@ -94,6 +97,20 @@ static int msm8994_hsphy_init(struct usb_phy *uphy)
+ 		writel(val, p->qscratch + PARAMETER_OVERRIDE_X);
+ 	}
+ 
++	if (p->has_lk_regs) {
++		/* replay what LK leaves in the wrapper when USB works */
++		writel(p->lk_regs[1], p->qscratch + PARAMETER_OVERRIDE_X);
++		writel(p->lk_regs[2], p->qscratch + HS_PHY_CTRL_COMMON);
++		writel(p->lk_regs[0], p->qscratch + HS_PHY_CTRL);
++		writel(p->lk_regs[3], p->qscratch + SS_PHY_CTRL);
++		mb();
++		dev_info(uphy->dev, "LK wrapper values written: ctrl %#x ovr %#x common %#x ss %#x\n",
++			 readl(p->qscratch + HS_PHY_CTRL),
++			 readl(p->qscratch + PARAMETER_OVERRIDE_X),
++			 readl(p->qscratch + HS_PHY_CTRL_COMMON),
++			 readl(p->qscratch + SS_PHY_CTRL));
++	}
++
+ 	dev_info(uphy->dev, "HS PHY initialised (core ver %#x, override %#x)\n",
+ 		 core_ver, readl(p->qscratch + PARAMETER_OVERRIDE_X));
+ 	return 0;
+@@ -168,6 +185,8 @@ static int msm8994_hsphy_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	of_property_read_u32(dev->of_node, "qcom,hsphy-init", &p->init_seq);
++	p->has_lk_regs = !of_property_read_u32_array(dev->of_node,
++					"qcom,lk-wrapper-regs", p->lk_regs, 4);
+ 	p->set_pllbtune = of_property_read_bool(dev->of_node,
+ 						"qcom,set-pllbtune");
+ 
+-- 
+2.43.0
+

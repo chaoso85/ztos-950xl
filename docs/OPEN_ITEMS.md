@@ -1,13 +1,12 @@
-# Açık işler / Open items (2026-11-07)
+# Açık işler / Open items (2026-11-08)
 
 Bu liste, "sonra bakarız" diye ertelenen, varsayılan ya da yarım kalan her şeyi tutar. İş bitince `[x]` yapın, yeni ertelenen bir şey çıkınca buraya ekleyin.
 Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 
 ## 1. Cihazı açmayı engelleyenler
-- [ ] (!) **USB gadget (rescue/SSH):** DT tarafı hazır, çekirdek derleniyor (`usb3`, UC120, SMBCHG açık; DWC3 yalnızca gadget; configfs ACM/ECM/NCM/RNDIS). **Donanımda doğrulanmadı.** Kalanlar:
-  - [ ] Gerçek HS/SS PHY sürücüsü yok: şimdilik UEFI'nin ilklediği PHY'ye güveniliyor, `usb-nop-xceiv` yalnızca l24'ü açık tutuyor (l6 always-on). Çalışmazsa downstream `qcom,usb-hsphy` init değerleri (0x00D191A4 / 0x00D1D9A4) ile PHY sürücüsü yazılacak.
-  - [ ] UC120: bit akışı gerekmiyor (FPGA'yı UEFI programlıyor). Sürücü yalnızca isteğe bağlı kalibrasyon dosyasını (`lattice/ice5lp_2k_cal.bin`, Windows'ta `MMO` bölümünde `\MMO\ice5lp_2k_cal.bin`) okuyor; yedekten çıkarılacak. UEFI'nin FPGA'yı gerçekten programladığı donanımda doğrulanmadı.
-  - [ ] initramfs içinde gadget (configfs) + SSH/ACM kurtarma betiği yazılacak.
+- [x] **USB gadget (rescue/SSH):** 2026-11-08 donanımda doğrulandı. Windows ACM (usbser) + RNDIS (rndiscmp, `MS_COMP_RNDIS`) görüyor; 192.168.77.1 <-> 192.168.77.2 ping ve anahtarlı SSH (dropbear) çalışıyor. Çözümler: TCSR 0xfd4ab000 = 1 ve LK'nın QSCRATCH değerleri (Davitekk/ztOS talkman-port `patch-dwc3-usb-sel.py`), configfs `serialnumber` (küçük harf), yeni `bcdDevice`, RNDIS önce / ACM sonra. Kalanlar:
+  - [ ] LK QSCRATCH değerlerinin cityman için gerçekten gerekli olup olmadığı ayrı ayrı denenmedi (talkman değerleri kullanılıyor).
+  - [ ] Windows tarafında IP elle veriliyor (`wph/usberror/phonenet.cmd`); telefonda DHCP yok.
   - [ ] Host/OTG modu kapalı (gadget-only); gerekirse dual-role + usb-role-switch.
 - [ ] (!) **SD karttan açılış:** UEFI'nin SD'den okuyabildiği doğrulanmadı. Bilinen çalışan yol: eMMC ESP üzerinde GRUB, `\EFI\Microsoft\Boot\bootmgfw.efi` olarak kopyalı (fallback yolu çalışmıyor).
 - [ ] (!) **Tam eMMC yedeği:** henüz alınmadı; ilk denemeden önce şart.
