@@ -46,3 +46,13 @@ Kapatma: 28, 10. Duke varyantında 11 sonrası bekleme 120 ms ve BD/FF dizileri 
 - FPGA bitstream sınırı sıfır dolguya göre tahmin edildi; "calibration file" ayrı bir kaynak, yeri bilinmiyor.
 - Hangi panelin (Sergej/Duke) kullanıldığı, UEFI'nin DCS ID okumasına bağlı olabilir; cityman downstream dtsi yalnızca Sergej içeriyor.
 - Mainline MDP5/DSI 20nm PHY'nin msm8994 için ne kadar hazır olduğu doğrulanmadı.
+
+## Durum güncellemesi (2026-11-08, cihazda ölçüldü)
+Ayrıntı: `BRINGUP_LOG.md`.
+- **USB3/DWC3 + gadget**: çalışıyor (TCSR yönlendirme + LK QSCRATCH değerleri), Windows ACM + RNDIS, SSH.
+- **SD**: çalışıyor, `no-1-8-v` ile 3.3 V yüksek hız. **eMMC** görünüyor, dokunulmadı.
+- **Ekran**: MDP5 v1.9, DSI, panel `sergej` bağlanıyor; ışık yok: DSI PHY PLL çalışmadan pclk/byte RCG'leri ayarlanıyor, `pp done time out`.
+- **GPU**: adreno bağlı; `a420_pm4.fw` yok, `oxili_gfx3d_clk` takılı (iommu resume, GX güç alanı).
+- **Dokunmatik** (S3708AR), tuşlar, hall, barometre, manyetometre, SMBCHG/FG: probe oluyor.
+- **Kamera**: CCS sürücüsü sensörlerle çalışmıyor (dummy supply, CCI timeout); tabloda "mainline'de yok" yazan satırların çoğu artık DT'de var ama donanımda çalışmıyor.
+- **Bluetooth**: ROME/QCA setup timeout. **Ses**: ADSP firmware yok, kart yok. **NFC**: arka kapak yokken polarite tespiti 33 sn bloklar, DT'de kapalı.

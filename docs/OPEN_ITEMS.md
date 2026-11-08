@@ -1,4 +1,4 @@
-# Açık işler / Open items (2026-11-08)
+# Açık işler / Open items (2026-11-08, güncellendi)
 
 Bu liste, "sonra bakarız" diye ertelenen, varsayılan ya da yarım kalan her şeyi tutar. İş bitince `[x]` yapın, yeni ertelenen bir şey çıkınca buraya ekleyin.
 Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
@@ -8,10 +8,24 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
   - [ ] LK QSCRATCH değerlerinin cityman için gerçekten gerekli olup olmadığı ayrı ayrı denenmedi (talkman değerleri kullanılıyor).
   - [ ] Windows tarafında IP elle veriliyor (`wph/usberror/phonenet.cmd`); telefonda DHCP yok.
   - [ ] Host/OTG modu kapalı (gadget-only); gerekirse dual-role + usb-role-switch.
-- [ ] (!) **SD karttan açılış:** UEFI'nin SD'den okuyabildiği doğrulanmadı. Bilinen çalışan yol: eMMC ESP üzerinde GRUB, `\EFI\Microsoft\Boot\bootmgfw.efi` olarak kopyalı (fallback yolu çalışmıyor).
+- [x] **SD karttan açılış:** 2026-11-08 doğrulandı: stock UEFI -> rEFInd -> SD üzerindeki GRUB (`\EFI\BOOT\BOOTAA64.EFI`) -> Linux. Windows girişi eMMC'den `bootmgfw_real.efi` ile zincirleniyor. Kalan: eMMC'deki eski GRUB kurulumunun (varsa) kaldırılması; SD'de rootfs için bölüm yalnızca 3,99 GB.
 - [ ] (!) **Tam eMMC yedeği:** henüz alınmadı; ilk denemeden önce şart.
-- [ ] **RPM regülatör takılması:** topluluk mainline 6.16'da framebuffer'dan sonra bu noktada takıldığını bildirdi; fork'ta düzelip düzelmediği bilinmiyor.
+- [x] **RPM regülatör takılması:** bu çekirdekte takılma yok; RPM geç ama açılıyor (~8 sn). İsteğe bağlı: RPM'i erken açtırmak.
 - [ ] **PSCI eksik:** kapatma / yeniden başlatma güvenilmez.
+
+## 1b. Tam-DT açılış günlüğünden çıkanlar (2026-11-08, ayrıntı: `research/BRINGUP_LOG.md`)
+- [ ] (!) **Ekran yanmıyor:** DSI açılırken `pclk0/1`, `byte0/1_clk_src` "rcg didn't update its configuration" (DSI PHY PLL çalışmıyor); `pp done time out, lm=2`. Sıra: PHY PLL / piksel saati.
+- [ ] **GPU:** `a420_pm4.fw` / `a420_pfp.fw` initramfs'te yok (61 sn bekleme); `oxili_gfx3d_clk` stuck (GPU iommu resume, GX güç alanı); adreno `vdd`/`vddcx` ve DSI `lab_reg`/`ibb_reg` DT'de yok; GPU cooling device kaydı başarısız.
+- [ ] `fb0: framebuffer is not in virtual address space` (fbcon msm fbdev'e geçerken).
+- [x] `NR_CPUS` 6 -> 8 (950 XL 4xA57+4xA53) ve A53/A57 için ayrı PMU (patch 0017). Cihazda henüz denenmedi.
+- [x] NFC (pn547) DT'de kapatıldı: arka kapak yokken polarite tespiti 33 sn bloklıyordu. Kapak takılınca `status = "disabled"` kaldırılacak.
+- [ ] `psci-cpuidle` -ENODEV: CPU idle durumları yok (güç tüketimi).
+- [ ] DT'de olmayan/yanlış donanım: si470x (5-0011), fan53555 (5-006c), ad714x (4-002c, IRQ yok), mpu6050 (2-0068), ccs sensörleri (6-0020, 6-006c, 7-0020); tsl2772 supply'ları; `i2c_qup f9967000` tx DMA kanalı.
+- [ ] Gecikmeler: fuel gauge probe ~19,8 sn, RPM regülatörleri ~8,3 sn, vadc + `spurious spmi irq apid=158` WARN.
+- [ ] Bluetooth ROME/QCA6390 0xfc00 timeout; ses: ADSP firmware (`qcadsp8994.mbn`) ve `regulatory.db` yok.
+- [ ] `keep_bootcon` olmadan zamanlaması gerçekçi bir günlük al (efifb erken zaman damgalarını ~40 kat şişiriyor).
+- [ ] "Volume was not properly unmounted" safe-reboot sonrası da çıkıyor; nedeni bulunamadı.
+- [ ] `ztos-lumia.config` artık izleme (ftrace/tracefs) seçeneklerini içeriyor; kararlı sürümde kapatılmalı.
 
 ## 2. Çekirdek birleştirme (master + camss) — bilerek bırakılanlar
 - [ ] `camss` dalındaki mmcc değişiklikleri alınmadı: mdss GDSC `GENPD_FLAG_NO_STAY_ON`, `oxili_gx` supply adı `vdd-gfx`, `OXILICX_AXI_CLK` binding'i. GPU/ekran sorun çıkarırsa ilk şüpheliler.

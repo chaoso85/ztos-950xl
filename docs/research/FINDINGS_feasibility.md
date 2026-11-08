@@ -35,3 +35,9 @@ YOK/etkin değil: USB (usb3 SoC dtsi'de var, cityman'da etkin değil), MDSS/DSI 
 4. SD karttan boot UEFI'de doğrulanmadı; eMMC üzerinden ESP/GRUB yöntemi kanıtlı. SD'den boot için UEFI'nin SD'den
    okuyabildiği test edilmeli (Lumia950XLPkg SD desteği var ama "bazı kartlar desteklenmiyor").
 5. EFS/MODEM/SBL/TZ/RPM bölümlerine dokunulmayacak; eMMC tam yedek zorunlu.
+
+## Güncelleme (2026-11-08)
+- Risk 1 (USB gadget): **çözüldü**, Windows ACM+RNDIS ve SSH çalışıyor.
+- Risk 4 (SD'den açılış): **çözüldü**: stock UEFI -> rEFInd -> SD üzerindeki GRUB (`\EFI\BOOT\BOOTAA64.EFI`) -> Linux.
+- Risk 2 (RPM takılması): bu çekirdekte takılma yok; RPM regülatörleri geç ama açılıyor (~8 sn).
+- Risk 3 (GPU/MDSS): MDP5/DSI/GPU bağlanıyor ama ekran henüz yanmıyor (bkz. `BRINGUP_LOG.md`).
