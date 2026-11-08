@@ -1,0 +1,47 @@
+From 36912738360d8f90a30e77744d027a4505b90ee9 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 22:16:10 +0000
+Subject: [PATCH] arm64: dts: qcom: cityman: keep the Adreno GPU and its SMMU
+ disabled
+
+Part of the reference project used: msm8994-msft-lumia-octagon-cityman.dts (&gpu okay) and the SAFE DT
+(&gpu, &gpu_iommu disabled), qcom_iommu.c attach path.
+Before: with GX collapsed the GPU SMMU resume fails (gfx3d clock stuck off), qcom_iommu_attach_dev() ignores
+that and programs the context bank anyway; on 2026-11-09 every FULL DT boot reset right after
+'fdb00000.gpu: Adding to iommu group 0' (~26.6 s), while the SAFE DT, which disables both, always booted.
+The GPU did not work anyway (no GX rail described). Display (MDP/DSI) is unaffected.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ .../qcom/msm8994-msft-lumia-octagon-cityman.dts    | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
+index 92f88d1f00b..e86245ca38b 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
+@@ -55,8 +55,20 @@ F0 11 30 03 00 00 00 0C
+ 	];
+ };
+ 
++/*
++ * Adreno 430 and its SMMU stay off until the GX rail (adreno vdd/vddcx) is described:
++ * with GX collapsed OXILI_GFX3D_CLK never turns on, qcom_iommu_resume() fails, and
++ * qcom_iommu_attach_dev() ignores that and programs the GPU SMMU context bank anyway.
++ * On 2026-11-09 every boot reset right there (26.65 s, "fdb00000.gpu: Adding to iommu
++ * group 0"), while the SAFE DT (GPU + GPU SMMU disabled) always booted. Display (MDP/DSI)
++ * does not need the GPU.
++ */
+ &gpu {
+-	status = "okay";
++	status = "disabled";
++};
++
++&gpu_iommu {
++	status = "disabled";
+ };
+ 
+ &mdss {
+-- 
+2.43.0
+

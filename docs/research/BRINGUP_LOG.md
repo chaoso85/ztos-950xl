@@ -138,3 +138,13 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
 - Hipotez (doğrulanmadı): firmware'in bazen kurulu bıraktığı APSS watchdog'u (f9017000). CONFIG_QCOM_WDT kapalıydı
   (referans mmo_defconfig'de de kapalı), yani kimse beslemiyordu. 0023: QCOM_WDT açık + probe'da EN/STS/BARK/BITE logu;
   qcom-pon probe'unda PMIC reset nedenleri (PON/WARM/POFF/SOFT) logu.
+
+## 9. 2026-11-09: reset noktası videodan bulundu → GPU + GPU SMMU kapatıldı (0024)
+
+- Video (28 s): son okunan satır 26.649 s `platform fdb00000.gpu: Adding to iommu group 0`, ardından yeni bir
+  `oxili_gfx3d_clk stuck at 'off'` WARN'ı basılırken reset. Dünkü çalışan açılışta aynı yer 26.18 s ve geçmişti.
+- `qcom_iommu_attach_dev()` `pm_runtime_get_sync()` hatasını yok sayıp GX kapalıyken GPU SMMU context bank'ını
+  programlıyor; sonucu donanım durumuna göre değişiyor (dün geçti, bugün reset, PREVIOUS girdisinde siyah ekran + donma).
+- SAFE DT (GPU + GPU SMMU kapalı) hiç bu sorunu yaşamadı. 0024 FULL DT'de &gpu ve &gpu_iommu'yu kapatıyor; ekran (MDP/DSI)
+  GPU'ya ihtiyaç duymuyor. GPU zaten çalışmıyordu (GX rail tanımlı değil).
+- SD: PREVIOUS girdisi = dünkü Image + yeni (GPU kapalı) DTB.
