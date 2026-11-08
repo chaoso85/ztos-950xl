@@ -35,8 +35,10 @@ if [ -n "$SDLOG" ]; then
   fi
   [ -f "$SDLOG/dmesg-boot.txt" ] && mv -f "$SDLOG/dmesg-boot.txt" "$SDLOG/dmesg-prev.txt"
   # append-only stream of the kernel log (no truncate/rewrite), flushed every 2 s
-  ( cat /proc/kmsg >> "$SDLOG/dmesg-boot.txt" ) &
+  cat /proc/kmsg >> "$SDLOG/dmesg-boot.txt" &
+  echo $! >> /tmp/logpids
   ( while true; do sync; sleep 2; done ) &
+  echo $! >> /tmp/logpids
 fi
 
 # --- dwc3 / gadget tracepoints to the SD card (EP0 requests, events, status) ---
@@ -50,7 +52,8 @@ if [ -n "$SDLOG" ]; then
       [ -e $T/events/dwc3/$e/enable ] && echo 1 > $T/events/dwc3/$e/enable
     done
     echo 1 > $T/events/dwc3/enable 2>/dev/null
-    ( cat $T/trace_pipe >> "$SDLOG/trace.txt" ) &
+    cat $T/trace_pipe >> "$SDLOG/trace.txt" &
+    echo $! >> /tmp/logpids
   fi
 fi
 
@@ -58,9 +61,12 @@ fi
 # rw and being written (that destroyed the card's root directory once).
 cat > /sbin/safe-reboot <<'EOS'
 #!/bin/sh
-pkill -f 'cat /proc/kmsg' 2>/dev/null; pkill -f trace_pipe 2>/dev/null; pkill -f 'sync; sleep 2' 2>/dev/null
+# busybox here has no pkill: loggers' PIDs are recorded in /tmp/logpids by init
+for p in $(cat /tmp/logpids 2>/dev/null); do kill $p 2>/dev/null; done
 sleep 1; sync; sync
-umount /mnt/sd 2>/dev/null || mount -o remount,ro /mnt/sd 2>/dev/null
+if ! umount /mnt/sd 2>/dev/null; then
+  mount -o remount,ro /mnt/sd 2>/dev/null || { echo "safe-reboot: cannot unmount or remount SD ro - NOT resetting" >&2; exit 1; }
+fi
 sync
 echo u > /proc/sysrq-trigger; sleep 1
 echo b > /proc/sysrq-trigger
