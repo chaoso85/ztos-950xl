@@ -69,12 +69,12 @@ G=/sys/kernel/config/usb_gadget/ztos
 if [ -n "$UDC" ]; then
   mkdir -p $G && cd $G
   echo 0x1d6b > idVendor; echo 0x0104 > idProduct   # Linux Foundation / Multifunction Composite
-  echo 0x0100 > bcdDevice; echo 0x0200 > bcdUSB
+  echo 0x0201 > bcdDevice; echo 0x0200 > bcdUSB   # new release: Windows asks for MS OS descriptors once per VID/PID/release and had cached "none"
   echo 0xef > bDeviceClass; echo 0x02 > bDeviceSubClass; echo 0x01 > bDeviceProtocol   # IAD composite
   mkdir -p strings/0x409
   # NOTE: the configfs attribute is lower-case "serialnumber"; "serialNumber" fails silently and leaves an
   # EMPTY string descriptor, which Windows rejects (Code 10 / NO_SUCH_DEVICE) right after Get String(3).
-  echo "ztos950xl"         > strings/0x409/serialnumber
+  echo "ztos950xl-r2"      > strings/0x409/serialnumber
   echo "ztOS"              > strings/0x409/manufacturer
   echo "Lumia 950 XL rescue" > strings/0x409/product
   mkdir -p configs/c.1/strings/0x409; echo "ACM+RNDIS" > configs/c.1/strings/0x409/configuration
