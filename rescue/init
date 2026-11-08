@@ -69,12 +69,12 @@ G=/sys/kernel/config/usb_gadget/ztos
 if [ -n "$UDC" ]; then
   mkdir -p $G && cd $G
   echo 0x1d6b > idVendor; echo 0x0104 > idProduct   # Linux Foundation / Multifunction Composite
-  echo 0x0201 > bcdDevice; echo 0x0200 > bcdUSB   # new release: Windows asks for MS OS descriptors once per VID/PID/release and had cached "none"
+  echo 0x0202 > bcdDevice; echo 0x0200 > bcdUSB   # new release: Windows asks for MS OS descriptors once per VID/PID/release and had cached "none"
   echo 0xef > bDeviceClass; echo 0x02 > bDeviceSubClass; echo 0x01 > bDeviceProtocol   # IAD composite
   mkdir -p strings/0x409
   # NOTE: the configfs attribute is lower-case "serialnumber"; "serialNumber" fails silently and leaves an
   # EMPTY string descriptor, which Windows rejects (Code 10 / NO_SUCH_DEVICE) right after Get String(3).
-  echo "ztos950xl-r2"      > strings/0x409/serialnumber
+  echo "ztos950xl-r3"      > strings/0x409/serialnumber
   echo "ztOS"              > strings/0x409/manufacturer
   echo "Lumia 950 XL rescue" > strings/0x409/product
   mkdir -p configs/c.1/strings/0x409; echo "ACM+RNDIS" > configs/c.1/strings/0x409/configuration
@@ -86,8 +86,9 @@ if [ -n "$UDC" ]; then
   echo 1 > os_desc/use; echo 0xcd > os_desc/b_vendor_code; echo MSFT100 > os_desc/qw_sign
   echo RNDIS > functions/rndis.usb0/os_desc/interface.rndis/compatible_id
   echo 5162001 > functions/rndis.usb0/os_desc/interface.rndis/sub_compatible_id
-  ln -s functions/acm.usb0 configs/c.1/
+  # RNDIS first (interface 0), as in Davitekk/ztOS zboot-usb-gadget: Windows' RNDIS driver fails to start otherwise
   ln -s functions/rndis.usb0 configs/c.1/
+  ln -s functions/acm.usb0 configs/c.1/
   ln -s configs/c.1 os_desc/
   echo "$UDC" > UDC && log "gadget bound to $UDC"
   cd /
