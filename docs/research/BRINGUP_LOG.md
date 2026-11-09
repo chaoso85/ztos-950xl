@@ -170,3 +170,16 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
   psci-cpuidle -ENODEV, l2 "bypassed regulator has no supply", i2c_qup f9967000 tx DMA yok, rmi4 vio / zpa2326 vref /
   DSI lab/ibb dummy, simple-pm-bus devlink hatası, qseecom atlandı.
 - USB: kablo boot sırasında takılı değildi (smbchg-usb=0); 84 s'de takılınca configured; çıkar/tak sorunsuz.
+
+## 12. 2026-11-10: msm DRM ile panel siyah; MDP SMMU çalışmıyor
+
+- 0025 DTB ile art arda 5 açılış init + USB'ye ulaştı (PMIC: PS_HOLD, beklenmeyen reset yok), ama panel siyah:
+  DRM "connected/enabled/DPMS On", saatler doğru, MDP/DSI kesmeleri artıyor, fakat her karede `pp done time out, lm=2`;
+  bir açılışta `fd9d4000.iommu-ctx: timeout waiting for TLB SYNC` ve panel probe 5.5 s.
+- #14 (ekran çalışmıştı) ile fark: GPU/CAMSS/VFE/Venus SMMU probe edilmişti. Venus SMMU, güvenli context'i olan tek
+  örnek → `qcom_iommu_sec_ptbl_init()` yalnızca onun probe'unda çalışıyor.
+- Deney: yalnız Venus SMMU'yu geri açan DTB → ~25 s'de ekran gitti, reset yok, USB gelmedi (init'e ulaşmadan donma).
+  Yani ptbl init'li MDP yolu da güvenilir değil (#14 tek başarılı örnek; aynı yapı diğer denemelerde reset/donma).
+- Karar: varsayılan girdi SAFE DT (MDSS + bütün SMMU'lar kapalı, UEFI framebuffer, fuel gauge/BT kapalı).
+  msm DRM girdisi "EXPERIMENTAL" olarak duruyor. 7.3'te msm KMS IOMMU'suz çalışmıyor ("no IOMMU, bailing out").
+- Açık iş: MDP SMMU (secure-id 1) — restore_sec_cfg/ptbl sırası, TLB sync, stall-on-fault; downstream 3.10 ile karşılaştır.
