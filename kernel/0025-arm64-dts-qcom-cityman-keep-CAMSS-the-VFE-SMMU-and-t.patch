@@ -1,0 +1,50 @@
+From 20efa54d0e01ed61f3de0bd95a13c0c0407c2be3 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 22:44:22 +0000
+Subject: [PATCH] arm64: dts: qcom: cityman: keep CAMSS, the VFE SMMU and the
+ Venus SMMU disabled
+
+Part of the reference project used: msm8994-msft-lumia-octagon.dtsi (&camss okay) and the SAFE DT
+(&camss, &vfe_iommu, &venus_iommu disabled).
+Before: with the GPU off the FULL DT still reset at ~25.07 s, right after the VFE SMMU context banks probed,
+where CAMSS gets attached and its context bank programmed while the camera block may be unpowered.
+Camera and video codec are unused so far; MDP and its SMMU stay enabled.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ .../msm8994-msft-lumia-octagon-cityman.dts    | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
+index e86245ca38b..425bbd6973d 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
+@@ -71,6 +71,25 @@ &gpu_iommu {
+ 	status = "disabled";
+ };
+ 
++/*
++ * Camera (CAMSS) and its VFE SMMU, and the Venus SMMU, stay off for now: on 2026-11-10 the
++ * GPU-less FULL DT still reset at ~25.07 s, right after the VFE SMMU contexts (fda4c000/fda4d000)
++ * probed, i.e. where CAMSS is attached to that SMMU and its context bank gets programmed while
++ * the camera block may be unpowered. The SAFE DT, which disables these too, never reset.
++ * Neither is used yet; MDP and its SMMU (display) stay enabled.
++ */
++&camss {
++	status = "disabled";
++};
++
++&vfe_iommu {
++	status = "disabled";
++};
++
++&venus_iommu {
++	status = "disabled";
++};
++
+ &mdss {
+ 	status = "okay";
+ };
+-- 
+2.43.0
+

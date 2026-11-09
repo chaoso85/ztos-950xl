@@ -148,3 +148,12 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
 - SAFE DT (GPU + GPU SMMU kapalı) hiç bu sorunu yaşamadı. 0024 FULL DT'de &gpu ve &gpu_iommu'yu kapatıyor; ekran (MDP/DSI)
   GPU'ya ihtiyaç duymuyor. GPU zaten çalışmıyordu (GX rail tanımlı değil).
 - SD: PREVIOUS girdisi = dünkü Image + yeni (GPU kapalı) DTB.
+
+## 10. 2026-11-10: GPU kapalı FULL DT yine ~25.07 s'de reset → CAMSS/VFE/Venus SMMU kapatıldı (0025)
+
+- Video (son 7 s, 10 fps + son 1.4 s 30 fps): gfx3d WARN yok (0024 çalıştı). Son satırlar: venus SMMU (fdc84000)
+  ctx'leri + "returned 0 after 95671 usecs", ardından VFE SMMU ctx'leri (fda4c000/fda4d000) 25.068 s → reset.
+  Dünkü başarılı logda bu noktanın hemen ardından `fda0ac00.camss: Adding to iommu group 1` (attach) geliyor.
+- Aynı sınıf sorun: SMMU attach, blok güçsüzken context bank'ı programlıyor. SAFE DT bunların hepsini kapatıyordu.
+- 0025: &camss, &vfe_iommu, &venus_iommu kapalı. Ekran için &mdp_iommu açık kalıyor; bu da reset verirse
+  bir sonraki şüpheli o.
