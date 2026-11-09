@@ -183,3 +183,40 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
 - Karar: varsayılan girdi SAFE DT (MDSS + bütün SMMU'lar kapalı, UEFI framebuffer, fuel gauge/BT kapalı).
   msm DRM girdisi "EXPERIMENTAL" olarak duruyor. 7.3'te msm KMS IOMMU'suz çalışmıyor ("no IOMMU, bailing out").
 - Açık iş: MDP SMMU (secure-id 1) — restore_sec_cfg/ptbl sırası, TLB sync, stall-on-fault; downstream 3.10 ile karşılaştır.
+
+## 13. 2026-11-10: dış kaynak taraması — notlar (sıradaki işin girdisi)
+
+### Downstream 3.10 (LineageOS android_kernel_sony_msm8994 cm-14.1; oneplus_msm8994 aynı taban)
+- `msm8994-iommu.dtsi` MDP SMMU: `qcom,msm-smmu-v1`, reg 0xfd9cc000 **0x10000**, `qcom,iommu-secure-id = <1>`,
+  ctx `mdp_0`@fd9d4000 (SID 0, NS), `mdp_1`@fd9d5000 ve `mdp_2`@fd9d6000 secure; `vdd-supply = gdsc_mdss`;
+  bus oyu `mdp_ebi` 22→512 (0 / 1000 KBps); BFB: 0x2000=0x3, 0x204c=0x7fffff, 0x2060=0x1777, … (19 kayıt).
+  Bizim `msm8994_mdp_bfb` 0x2000=0x3 kaydını bilerek atlıyor (referans yorumu: "impl-def bias removed").
+- `msm_iommu-v1.c` attach sırası: GDSC + bus oyu + saatler → (secure ise) `scm restore_sec_cfg(sec_id, ctx)` →
+  BFB → halt → ctx programla (reset ctx, TTBR0, ACTLR BPRC*, ASIDPNE, **TLBIASID + TLBSYNC**, sonra SCTLR.M) → resume →
+  tekrar TLBIASID + sync. Bizim `qcom_iommu_program_ctx()` M bitini açmadan önce TLB invalidate/sync yapmıyor.
+- **`mdss_mdp.c` kilit nokta:** "delay iommu attach until continous splash screen has finished handoff, as it may still
+  be working with phys addr". Alternatif yol (`mdss_mdp_splash_logo.c`): splash belleğini iommu'da 1:1 (iova = phys)
+  map edip öyle attach. Bizde MDP SMMU, UEFI hâlâ framebuffer'ı fiziksel adresten tararken
+  (`fd901000.mdp: Adding to iommu group 0` → default DMA domain attach) açılıyor → reset/donma/TLB SYNC timeout/
+  `pp done time out` tablosunun en olası açıklaması.
+- Çözüm adayları: (a) `qcom_iommu`'ya `get_resv_regions` (of_iommu `iommu-addresses` 1:1) desteği + DT'de efifb
+  bölgesini `iommu-addresses = <&mdss_mdp …>` ile işaretle; (b) SMMU M bitini açmadan önce MDP INTF timing engine'leri
+  durdur (msm `mdp5_kms_init` bunu yapıyor ama iommu grup attach'ından SONRA); (c) 0x2000 BFB + TLBIASID/sync farkları.
+
+### wiki.nura.eco microsoft-cityman (kayıtlı kopya: wph\webpage_nura)
+- Durum 19 Eylül 2026 (Android4Lumia950/linux için): Wi-Fi & Bluetooth çalışıyor, GPU çalışıyor ama iyileştirme gerek,
+  QC şarj (~9 W), pil durumu, ana hoparlör, bazı sensörler. Tablo: ekran/dokunmatik Works, USB networking Broken.
+- Eski not: ath10k (PCIe QCA6174) sistemi kilitliyordu; BT ve Wi-Fi için QCA6174 rampatch/TLV blob'ları gerekiyor.
+- Bizim taban = Android4Lumia950/linux master (2026-09-10, eb871dc) — daha yeni master yok. Yan dallar: `iommu`, `mdss`
+  (2026-08, master'a girmiş eski hâller), `camss` (2026-08-29), `msm8994-6.x` (2024-12: "ADSP loads… MDSS hangs the
+  kernel"), `djokcho` (2025-03). Wi-Fi/BT/GPU/ses için ayrıca firmware + config gerekiyor.
+
+### Empyreal96 (rehber + packed-lumia-950xl-kernels)
+- Ekran yalnız efifb (`CONFIG_DRM_MSM` kapalı, `video=efifb`); DTB'de MDSS/IOMMU yok.
+- BT firmware: `qca/rampatch_00440302.bin` (sha256 998d8d1f…), `qca/nvm_00440302.bin` (8fbe6d65…). Wi-Fi: PCIe1 + ath10k.
+- 5.8-rc3 config'te `CONFIG_QCOM_WDT=y`.
+
+### Diğer
+- openSUSE Hack Week: angler/bullhead ana hat; cont_splash_mem eşleme düzeltmeleri (v6.4, fe88480a6be9, c85c8a992794).
+- somainline msm8994 sayfası, AOSP hardware/qcom/msm8994 (kullanıcı tarafı HAL), UniXNU-lumia950 (XNU iskeleti): kernel
+  tarafı için katkı yok.
