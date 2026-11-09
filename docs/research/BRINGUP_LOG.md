@@ -220,3 +220,10 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
 - openSUSE Hack Week: angler/bullhead ana hat; cont_splash_mem eşleme düzeltmeleri (v6.4, fe88480a6be9, c85c8a992794).
 - somainline msm8994 sayfası, AOSP hardware/qcom/msm8994 (kullanıcı tarafı HAL), UniXNU-lumia950 (XNU iskeleti): kernel
   tarafı için katkı yok.
+
+## 14. 2026-11-10: 0026 — MDP SMMU varsayılan domain'i identity (bypass)
+
+- Downstream `mdss_iommu_ctrl()` mantığının karşılığı: MDP cihazı iommu grubuna eklendiğinde (UEFI hâlâ fiziksel
+  adresten tarıyorken) çeviren DMA domain'i yerine identity domain alıyor; context bank'a dokunulmuyor. msm DRM kendi
+  paging domain'ini `msm_kms_init_vm()` içinde, `mdp5_kms_init()` timing engine'leri durdurduktan sonra bağlıyor.
+- Test: GRUB 2. girdi ("FULL DT, msm DRM on (TEST…)"), Image 76509d8c242f, DTB 927c2b4a77bb (0025: GPU/CAMSS/VFE/Venus kapalı).

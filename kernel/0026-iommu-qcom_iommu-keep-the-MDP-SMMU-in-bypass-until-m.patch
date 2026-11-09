@@ -1,0 +1,61 @@
+From c90ce6ae747ce9595eb733e38792e37ddcd39ffe Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 23:48:55 +0000
+Subject: [PATCH] iommu: qcom_iommu: keep the MDP SMMU in bypass until msm DRM
+ attaches its domain
+
+Part of the reference project used: downstream 3.10 drivers/video/msm/mdss/mdss_mdp.c (LineageOS
+android_kernel_sony_msm8994 cm-14.1, mdss_iommu_ctrl: 'delay iommu attach until continous splash screen
+has finished handoff, as it may still be working with phys addr') and qcom_iommu.c identity domain.
+Before: the MDP device got a translating DMA default domain when its iommu group was created
+('fd901000.mdp: Adding to iommu group 0'), enabling the context bank while UEFI's MDP was still scanning
+out its framebuffer by physical address. Boots then reset, hung, or came up with 'timeout waiting for TLB
+SYNC' and 'pp done time out' on every frame (black panel). Now the MDP SMMU default domain is identity;
+msm DRM attaches its own paging domain in msm_kms_init_vm(), after mdp5_kms_init() has stopped the
+interface timing engines.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ drivers/iommu/arm/arm-smmu/qcom_iommu.c | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/drivers/iommu/arm/arm-smmu/qcom_iommu.c b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+index 2d90bb910d3..a94dfb454c4 100644
+--- a/drivers/iommu/arm/arm-smmu/qcom_iommu.c
++++ b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+@@ -883,8 +883,32 @@ static int qcom_iommu_of_xlate(struct device *dev,
+ 	return iommu_fwspec_add_ids(dev, &asid, 1);
+ }
+ 
++/*
++ * The display SMMU starts in bypass (identity) and only gets a translating
++ * domain when msm DRM attaches its own one, after mdp5_kms_init() has stopped
++ * the interface timing engines. UEFI leaves MDP scanning out its framebuffer
++ * by physical address; a DMA default domain enabled the context bank at
++ * iommu group creation while that scanout was still running, so MDP fetches
++ * hit an empty page table. Downstream 3.10 (mdss_mdp.c) avoids the same
++ * thing: "delay iommu attach until continous splash screen has finished
++ * handoff, as it may still be working with phys addr".
++ */
++static int qcom_iommu_def_domain_type(struct device *dev)
++{
++	struct qcom_iommu_dev *qcom_iommu = dev_iommu_priv_get(dev);
++
++	if (qcom_iommu && qcom_iommu->dev &&
++	    (of_device_is_compatible(qcom_iommu->dev->of_node, "qcom,msm8994-mdp-iommu") ||
++	     of_device_is_compatible(qcom_iommu->dev->of_node, "qcom,msm8992-mdp-iommu") ||
++	     of_device_is_compatible(qcom_iommu->dev->of_node, "qcom,msm8974-mdp-iommu")))
++		return IOMMU_DOMAIN_IDENTITY;
++
++	return 0;
++}
++
+ static const struct iommu_ops qcom_iommu_ops = {
+ 	.identity_domain = &qcom_iommu_identity_domain,
++	.def_domain_type = qcom_iommu_def_domain_type,
+ 	.capable	= qcom_iommu_capable,
+ 	.domain_alloc_paging = qcom_iommu_domain_alloc_paging,
+ 	.probe_device	= qcom_iommu_probe_device,
+-- 
+2.43.0
+
