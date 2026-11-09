@@ -157,3 +157,16 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
 - Aynı sınıf sorun: SMMU attach, blok güçsüzken context bank'ı programlıyor. SAFE DT bunların hepsini kapatıyordu.
 - 0025: &camss, &vfe_iommu, &venus_iommu kapalı. Ekran için &mdp_iommu açık kalıyor; bu da reset verirse
   bir sonraki şüpheli o.
+
+## 11. 2026-11-10: GPU + CAMSS/VFE/Venus SMMU kapalı FULL DT açıldı (#17, DTB 0025)
+
+- init 25.37 s, USB/SSH 27.9 s; ekran msm DRM ile çalışıyor ("no GPU device was found" beklenen). DSI PHY artık 2.8 s değil
+  (0021 sonrası WARN yok). ad714x satırı yok (0022).
+- Watchdog: `EN=0x0 STS=0x0` → firmware APSS watchdog'u kurulu bırakmamış; watchdog hipotezi YANLIŞ çıktı.
+- PMIC: `pon a0 warm 00 00 poff 08 00 soft 00 00`. Downstream qpnp-power-on tablosuna göre POFF bit3 = GP1
+  (Keypad_Reset1, tuşla zorla kapatma); warm reset nedeni yok. Önceki döngü kullanıcının tuşla kapatmasıyla bitmiş.
+- Kalanlar: fuel gauge 19.3 s, `pp done time out, lm=2` ×2, fb0 "not in virtual address space" (imageblit/fillrect),
+  spurious SPMI irq apid=158, BT QCA timeout ×4, qcadsp8994.mbn yok, ses kartı deferred, regulatory.db yok,
+  psci-cpuidle -ENODEV, l2 "bypassed regulator has no supply", i2c_qup f9967000 tx DMA yok, rmi4 vio / zpa2326 vref /
+  DSI lab/ibb dummy, simple-pm-bus devlink hatası, qseecom atlandı.
+- USB: kablo boot sırasında takılı değildi (smbchg-usb=0); 84 s'de takılınca configured; çıkar/tak sorunsuz.
