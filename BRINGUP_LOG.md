@@ -71,3 +71,15 @@ Sıradaki iş: mainline `clk-alpha-pll` + özel mux/div saat sağlayıcısı + `
     The other table ends at 1766.4 MHz (the 1.8 GHz bin).
   - CCI: up to 921.6 / 940.8 / 787.2 MHz in three variants; 600 MHz and up needs 1225 mV.
 - Ceiling for the highest corner on this SoC is therefore 1225 mV (not 1180 mV as in the Lumia 950 / MSM8992 regulator dtsi).
+
+## 31. TSENS (SoC temperature sensors) for MSM8994
+
+- Only the PMIC die and the battery were visible; the 16 TSENS sensors (cpu0-7, gpu, pop memory) were not exposed.
+- Same v0.1 TSENS IP as MSM8974, 16 sensors. Kernel patch 0037: MSM8994 data in tsens-v0_1.c, calibration read from QFPROM corrected
+  alias 0xfc4bc0d0 (three 32-bit words, same alias as the speed bin; verified: cal_sel 3 = two-point, base0 526, base1 833, all offsets 0),
+  DT node tsens@fc4a9000 (TM) / fc4a8000 (SROT), IRQ SPI 184, read-only thermal zones. Sensor numbering from the downstream
+  qcom,sensor-information: 7-10 = cpu0-3 (A53), 13/14/15/6 = cpu4-7 (A57), 12 = gpu, 2 = pop memory.
+- Kernel config: CONFIG_NVMEM_QCOM_QFPROM=y (dependency) and CONFIG_QCOM_TSENS=y. The kernel now builds from a clean tree
+  (7.3.0-rc2-sumire-g971297720829); the old "-dirty" string would have broken module loading (vermagic).
+- SD: new Image, both DTBs, rescue.cpio.gz (ztboost.ko rebuilt for the new release), grub.cfg with entry 4 "PREVIOUS kernel" (Image.prev + cityman.prev.dtb).
+- Redundancy region (+0x464 ...) of the downstream calibration is not handled yet.
