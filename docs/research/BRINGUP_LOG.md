@@ -326,3 +326,12 @@ Image 2d88a55f7f12, grub.cfg 3d93e7858463.
 - 0035 markers to dev_dbg without pauses, DRM_MSM/panel back to built-in (Image 8d6fd74eaffd); FULL
   grub entry back to the normal console without initcall_debug (grub.cfg a09926184cc5).
 - Lesson: the fbcon output lags real time by seconds; never locate a reset from the last visible line.
+
+## 23. FULL DT reliability with 0034
+
+FULL DT (default entry since grub 25c9a4526b7e), Image 8d6fd74eaffd: 4/4 clean boots (1 user boot + 3
+safe-reboot cycles, each back in ~75 s = ~40 s firmware/GRUB + ~35 s uptime, i.e. no hidden extra boot).
+Every boot: early pgtable init done (0.46 s), [drm] Initialized msm (~22 s), msmdrmfb, init ~22.5 s,
+console visible on the panel, no SMMU faults/oops. Remaining: fuel-gauge probe blocks ~18 s
+(2.3 -> 20.4 s), one "pp done time out, lm=2" at DRM init, spmi-pmic-arb.c:786 WARNING in
+pmic_arb_chained_irq, Bluetooth QCA version read times out.
