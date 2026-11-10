@@ -261,3 +261,12 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
   artık MDP SMMU'dan (fd9cc000) basılıyor, `pp done time out` 2'den 1'e indi, init 25.9 s, USB/SSH çalışıyor.
 - Aynı build'in 1. açılışı ~25 s'de reset attı; init'e ulaşmadığı için log yok. Sonraki açılışta PMIC: `pon 21 poff 02`
   = PS_HOLD ile kapanma (kullanıcı tuşu değil; TZ/yazılım kaynaklı reset). Reset noktası hâlâ MDSS/MDP SMMU probe aralığı (24–25.3 s).
+
+## 17. 0028: OCMEM off (reset right after its probe)
+
+120 fps video of the reset boot with 0027: last lines are `ocmem fdd00000.sram: 8 ports, 4 regions, 32 macros,
+interleaved` (25.439), `probe of fdd00000.sram with driver ocmem returned 0` (25.456) and `l20: Bringing 0uV into
+2950000-2950000uV` (25.466), then reset (next boot PMIC: pon 21, poff 02 = PS_HOLD). In the good boot the next
+line after ocmem is the MDP SMMU `iommu sec: pgtable size: 151552`. OCMEM is used only by the (disabled) GPU but
+its probe enables VDD_GFX, sets the RPM OCMEMGX clock and does a TZ restore_sec_cfg, so 0028 disables it.
+Test: several consecutive boots of the FULL DT entry; DTB sha 957c0aaec820.

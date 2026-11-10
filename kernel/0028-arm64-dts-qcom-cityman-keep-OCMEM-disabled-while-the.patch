@@ -1,0 +1,40 @@
+From fa180b72a7c78ecdc122b9543b8a0d6a469d1c2a Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 00:28:36 +0000
+Subject: [PATCH] arm64: dts: qcom: cityman: keep OCMEM disabled while the GPU
+ is off
+
+Part of the reference project used: msm8994-msft-lumia-octagon.dtsi &ocmem (vdd-gfx), drivers/soc/qcom/ocmem.c.
+Before: OCMEM probed although its only user, the Adreno GPU, is disabled; the probe enables VDD_GFX, sets the
+RPM OCMEMGX clock and issues a TZ restore_sec_cfg. A boot reset ~10 ms after its probe, before the MDP SMMU
+probe that normally follows it.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ .../dts/qcom/msm8994-msft-lumia-octagon-cityman.dts    | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
+index 425bbd6973d..4d538ad3933 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
+@@ -71,6 +71,16 @@ &gpu_iommu {
+ 	status = "disabled";
+ };
+ 
++/*
++ * OCMEM is only used by the Adreno GPU (GMEM), which is disabled. Its probe enables the
++ * VDD_GFX rail, sets the RPM OCMEMGX clock and touches the OCMEM controller plus a TZ
++ * restore_sec_cfg with the GPU domain off. On 2026-11-10 a boot reset ~10 ms after
++ * "fdd00000.sram ... returned 0", before the MDP SMMU probe that normally follows it.
++ */
++&ocmem {
++	status = "disabled";
++};
++
+ /*
+  * Camera (CAMSS) and its VFE SMMU, and the Venus SMMU, stay off for now: on 2026-11-10 the
+  * GPU-less FULL DT still reset at ~25.07 s, right after the VFE SMMU contexts (fda4c000/fda4d000)
+-- 
+2.43.0
+
