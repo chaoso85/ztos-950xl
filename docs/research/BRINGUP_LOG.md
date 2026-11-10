@@ -257,3 +257,7 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
   kurulmuyor, MDP SMMU (secure-id 1) TZ tarafından havuzsuz restore ediliyor.
 - 0027: havuz her TZ-yönetimli örnek için (bir kez) kuruluyor — downstream `msm_iommu_sec_ptbl_init()` gibi.
   Image 94982b91da1a, SD'ye SSH ile yazıldı (DTB aynı: 927c2b4a77bb).
+- **Sonuç (0027, Image 94982b91da1a):** 2. açılışta panel msm DRM ile görüntü veriyor; `iommu sec: pgtable size: 151552`
+  artık MDP SMMU'dan (fd9cc000) basılıyor, `pp done time out` 2'den 1'e indi, init 25.9 s, USB/SSH çalışıyor.
+- Aynı build'in 1. açılışı ~25 s'de reset attı; init'e ulaşmadığı için log yok. Sonraki açılışta PMIC: `pon 21 poff 02`
+  = PS_HOLD ile kapanma (kullanıcı tuşu değil; TZ/yazılım kaynaklı reset). Reset noktası hâlâ MDSS/MDP SMMU probe aralığı (24–25.3 s).
