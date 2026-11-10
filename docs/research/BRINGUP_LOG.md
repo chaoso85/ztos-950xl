@@ -247,3 +247,13 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
   168c:003e. `qcom,ep-wakeirq` geri. Firmware: Android QCA6174 hw3 `qwlan30.bin` (750 788 B, f84fd11d…); FFU'daki
   Windows `qwlan30.bin` (1 068 368 B, 3b7e5f82…) **çalışmıyor**. Board kalibrasyonu `bdwlan30.bin` cihazın kendi dosyası.
 - Modem: MBA 0x06e80000, metadata 0x06f80000; modem 0x07000000, peripheral 0x0ca00000 (31 MiB, ADSP ~24 + Venus ~5), ramoops 0x0f200000.
+
+## 16. 2026-11-10: 0026 testi + 0027 (TZ secure page-table havuzu)
+
+- 0026 (MDP SMMU identity) ile: reset/donma yok, `TLB SYNC` timeout yok, init 26.0 s, USB/SSH çalışıyor. Ama panel
+  hâlâ siyah: `pp done time out, lm=2` ×2, SMMU fault mesajı yok.
+- Ekranın çalıştığı tek açılış (#14) ile fark: orada Venus SMMU, MDP SMMU'dan önce probe olup
+  `qcom_iommu_sec_ptbl_init()` çalıştırmıştı ("iommu sec: pgtable size: 151552"). 0025'ten beri Venus kapalı → havuz hiç
+  kurulmuyor, MDP SMMU (secure-id 1) TZ tarafından havuzsuz restore ediliyor.
+- 0027: havuz her TZ-yönetimli örnek için (bir kez) kuruluyor — downstream `msm_iommu_sec_ptbl_init()` gibi.
+  Image 94982b91da1a, SD'ye SSH ile yazıldı (DTB aynı: 927c2b4a77bb).
