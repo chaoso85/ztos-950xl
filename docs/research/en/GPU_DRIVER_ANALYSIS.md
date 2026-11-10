@@ -77,3 +77,12 @@ Sources: `Davitekk/ztOS` branch `talkman-port` (`devices/microsoft-talkman`), th
 - **Boot path:** Davitekk: UEFI → BootShim (AArch32; after `ExitBootServices` SMC `0x0200010f` = SCM milestone 32→64, `el1_elr`=LK) → lk2nd → Android boot image. lk2nd deliberately disables `ENABLE_XPU_VIOLATION` ("primary bootloader does it") and does nothing GPU-specific; its MMSS AXI clocks are display-only. Ours is UEFI → GRUB. Whether the TZ state differs between the two paths **cannot be determined from sources**.
 - **8992 vs 8994:** Davitekk runs on 8992 (A418 as A430). The fork's 8994 guard ("First hw_init works") says sonic011gamer's first `hw_init` ran on 8994; our real path has never been run yet.
 - **Conclusion / plan (no phone access):** (1) no more raw MMIO reads. (2) A `gpu_iommu` patch for the 8994 GPU branch that never touches GR0 (no `reset_ns`) and defers hardware access until after the first real `pre_gpu_power`, like `hw_deferred` for MDP. (3) Enable `gpu`, `gpu_iommu`, `ocmem` in DT and run the real driver path once with the SD logger on. Only when the user gives the connection, with the reboot reason stated first.
+
+## 9. Result: the GPU is up (2026-11-10, kernel `g140ac6e92bc9`, rescue FULL DT)
+
+Patch (kernel/0038): no GR0 access on the GPU SMMU, no hardware access before the first `pre_gpu_power`, context programming after `restore_sec_cfg(18)`, identity default domain. `gpu`, `gpu_iommu`, `ocmem` enabled in DT.
+- No reset or hang at boot; `fdb00000.gpu` joined its iommu group, a420 firmware loaded, `bound fdb00000.gpu (ops a3xx_ops)`.
+- GPU `active`, CX GDSC on, GX GDSCR PWR_ON (`0xA0282000`), `oxili_gfx3d_clk` on.
+- `debugfs dri/1/gpu`: `revision 430`, `rbbm-status 0x1`, ring `iova 0x2001000`, `rptr == wptr == 18`: the CP consumed its init commands (hw_init done, SMMU translation works).
+- Open: a real GPU workload (Mesa freedreno a4xx), the `Couldn't register GPU cooling device` error, devfreq idle at 27 MHz, `vdd/vddcx` as dummy regulators.
+- Lesson: the section 8 hypothesis was right; the problem was not the power votes but touching the TZ-owned GR0 too early.

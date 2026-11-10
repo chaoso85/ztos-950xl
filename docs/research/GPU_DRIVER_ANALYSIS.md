@@ -77,3 +77,12 @@ Kaynaklar: `Davitekk/ztOS` dalı `talkman-port` (`devices/microsoft-talkman`), `
 - **Önyükleme yolu:** Davitekk: UEFI → BootShim (AArch32; `ExitBootServices` sonrası SMC `0x0200010f` = SCM milestone 32→64, `el1_elr`=LK) → lk2nd → Android boot imajı. lk2nd `ENABLE_XPU_VIOLATION`'ı bilerek kapatır ("birincil yükleyici yapsın"); GPU'ya özel bir şey yapmaz, MMSS AXI saatleri yalnızca ekran için. Bizim yol UEFI → GRUB. TZ durumunun iki yolda farklı olup olmadığı **kaynaktan belirlenemedi**.
 - **8992 vs 8994:** Davitekk'in çalıştığı donanım 8992 (A418 → A430 gibi). Fork'taki 8994 koşulu ("First hw_init works") sonic011gamer'ın 8994'te de ilk `hw_init`in çalıştığını söylüyor; bizde henüz gerçek yol hiç koşmadı.
 - **Sonuç / plan (telefona dokunmadan):** (1) Bir daha ham MMIO okuması yok. (2) `gpu_iommu` için 8994 GPU dalında GR0'a **hiç** dokunmayan (`reset_ns` yok) ve MDP'deki `hw_deferred` gibi ilk gerçek `pre_gpu_power` sonrasına erteleyen yama. (3) DT'de `gpu`, `gpu_iommu`, `ocmem` açılıp gerçek sürücü yolu tek seferde denenir; SD günlüğü açık. Deney yalnızca kullanıcı bağlantı verdiğinde ve reboot nedeni önceden söylenerek yapılır.
+
+## 9. Sonuç: GPU açıldı (2026-11-10, çekirdek `g140ac6e92bc9`, rescue FULL DT)
+
+Yama (kernel/0038): GPU SMMU'da GR0'a dokunma yok, ilk `pre_gpu_power` öncesi donanım erişimi yok, bağlam programlaması `restore_sec_cfg(18)` sonrası, varsayılan alan identity. `gpu`, `gpu_iommu`, `ocmem` DT'de açık.
+- Açılışta reset/donma **yok**; `fdb00000.gpu` iommu grubuna eklendi, a420 firmware yüklendi, `bound fdb00000.gpu (ops a3xx_ops)`.
+- GPU `active`, CX GDSC açık, GX GDSCR PWR_ON (`0xA0282000`), `oxili_gfx3d_clk` açık.
+- `debugfs dri/1/gpu`: `revision 430`, `rbbm-status 0x1`, ring `iova 0x2001000`, `rptr == wptr == 18` → CP başlangıç komutlarını işledi (hw_init tamam, SMMU çevirisi çalışıyor).
+- Kalan: GPU iş yükü (Mesa freedreno a4xx) denemesi, soğutma cihazı hatası (`Couldn't register GPU cooling device`), devfreq 27 MHz'de boşta, `vdd/vddcx` regülatörleri dummy.
+- Ders: 8. bölümdeki tahmin doğru çıktı; sorun güç oyları değil, TZ'ye ait GR0'a erken dokunmaktı.
