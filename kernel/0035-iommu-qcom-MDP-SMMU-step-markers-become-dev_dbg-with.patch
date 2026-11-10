@@ -1,0 +1,37 @@
+From 26dd8bfd38bbba9058815cab1b355560c10cd839 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 01:48:39 +0000
+Subject: [PATCH 3/3] iommu/qcom: MDP SMMU step markers become dev_dbg without
+ the 400 ms pauses
+
+Part of the reference project used: none (debug aid from the reset hunt).
+Before: every MDP SMMU resume/attach step logged at info level and slept 400 ms so a streamed log could catch a
+reset; with the reset fixed (deferred restore_sec_cfg) that only slowed boot and display resume.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ drivers/iommu/arm/arm-smmu/qcom_iommu.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/iommu/arm/arm-smmu/qcom_iommu.c b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+index c81ff45762c..4664353d07d 100644
+--- a/drivers/iommu/arm/arm-smmu/qcom_iommu.c
++++ b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+@@ -64,12 +64,12 @@ enum qcom_iommu_clk {
+ struct qcom_iommu_ctx;
+ 
+ 
+-/* ztOS bring-up: step markers for the MDP SMMU, with a pause so a log streamed off the phone sees them before a reset */
++/* ztOS bring-up: step markers for the MDP SMMU (dev_dbg; enable with dyndbg when hunting a reset) */
+ static bool qcom_iommu_is_mdp_dev(struct device *dev)
+ {
+ 	return dev && dev->of_node && of_device_is_compatible(dev->of_node, "qcom,msm8994-mdp-iommu");
+ }
+-#define MDP_STEP(dev, fmt, ...) do { if (qcom_iommu_is_mdp_dev(dev)) { dev_info(dev, "mdp-step: " fmt "\n", ##__VA_ARGS__); msleep(400); } } while (0)
++#define MDP_STEP(dev, fmt, ...) do { if (qcom_iommu_is_mdp_dev(dev)) dev_dbg(dev, "mdp-step: " fmt "\n", ##__VA_ARGS__); } while (0)
+ 
+ struct qcom_iommu_bfb_reg {
+ 	u32			 offset;
+-- 
+2.43.0
+

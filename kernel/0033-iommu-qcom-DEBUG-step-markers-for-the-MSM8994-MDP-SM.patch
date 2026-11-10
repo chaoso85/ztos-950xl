@@ -1,0 +1,101 @@
+From aa43d909f15fb7b0649b422dac1a85e749f53d8e Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 01:38:13 +0000
+Subject: [PATCH 1/3] iommu/qcom: DEBUG step markers for the MSM8994 MDP SMMU
+ probe/resume
+
+Part of the reference project used: qcom_iommu.c probe/resume path (sec ptbl init, restore_sec_cfg, BFB).
+Before: enabling the MDP SMMU node at runtime on an idle system resets the SoC right after 'iommu sec: pgtable
+size', and the step that triggers it could not be told apart. Each step now logs and pauses 400 ms.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ drivers/iommu/arm/arm-smmu/qcom_iommu.c | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/drivers/iommu/arm/arm-smmu/qcom_iommu.c b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+index d48aded8c47..95e844c5f1e 100644
+--- a/drivers/iommu/arm/arm-smmu/qcom_iommu.c
++++ b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+@@ -63,6 +63,14 @@ enum qcom_iommu_clk {
+ 
+ struct qcom_iommu_ctx;
+ 
++
++/* ztOS bring-up: step markers for the MDP SMMU, with a pause so a log streamed off the phone sees them before a reset */
++static bool qcom_iommu_is_mdp_dev(struct device *dev)
++{
++	return dev && dev->of_node && of_device_is_compatible(dev->of_node, "qcom,msm8994-mdp-iommu");
++}
++#define MDP_STEP(dev, fmt, ...) do { if (qcom_iommu_is_mdp_dev(dev)) { dev_info(dev, "mdp-step: " fmt "\n", ##__VA_ARGS__); msleep(400); } } while (0)
++
+ struct qcom_iommu_bfb_reg {
+ 	u32			 offset;
+ 	u32			 value;
+@@ -947,6 +955,7 @@ static int qcom_iommu_sec_ptbl_init(struct device *dev)
+ 	}
+ 
+ 	dev_info(dev, "iommu sec: pgtable size: %zu\n", psize);
++	MDP_STEP(dev, "after PTBL_SIZE");
+ 
+ 	attrs = DMA_ATTR_NO_KERNEL_MAPPING;
+ 
+@@ -957,7 +966,9 @@ static int qcom_iommu_sec_ptbl_init(struct device *dev)
+ 		return -ENOMEM;
+ 	}
+ 
++	MDP_STEP(dev, "pool at %pad, calling PTBL_INIT", &paddr);
+ 	ret = qcom_scm_iommu_secure_ptbl_init(paddr, psize, spare);
++	MDP_STEP(dev, "PTBL_INIT ret %d", ret);
+ 	if (ret) {
+ 		dev_err(dev, "failed to init iommu pgtable (%d)\n", ret);
+ 		goto free_mem;
+@@ -1229,6 +1240,7 @@ static int qcom_iommu_device_probe(struct platform_device *pdev)
+ 	ret = devm_pm_runtime_enable(dev);
+ 	if (ret)
+ 		return ret;
++	MDP_STEP(dev, "probe: populating ctx banks");
+ 
+ 	/* register context bank devices, which are child nodes: */
+ 	ret = devm_of_platform_populate(dev);
+@@ -1244,7 +1256,9 @@ static int qcom_iommu_device_probe(struct platform_device *pdev)
+ 		return ret;
+ 	}
+ 
++	MDP_STEP(dev, "probe: registering iommu");
+ 	ret = iommu_device_register(&qcom_iommu->iommu, &qcom_iommu_ops, dev);
++	MDP_STEP(dev, "probe: iommu registered (%d)", ret);
+ 	if (ret) {
+ 		dev_err(dev, "Failed to register iommu\n");
+ 		goto err_sysfs_remove;
+@@ -1296,9 +1310,11 @@ static int __maybe_unused qcom_iommu_resume(struct device *dev)
+ 			return ret;
+ 	}
+ 
++	MDP_STEP(dev, "resume: enabling clocks");
+ 	ret = clk_bulk_prepare_enable(CLK_NUM, qcom_iommu->clks);
+ 	if (ret < 0)
+ 		return ret;
++	MDP_STEP(dev, "resume: clocks on");
+ 
+ 	/*
+ 	 * MSM8994 GPU SMMU is TZ-managed (3.10 qcom,iommu-secure-id
+@@ -1316,12 +1332,15 @@ static int __maybe_unused qcom_iommu_resume(struct device *dev)
+ 		if (ret)
+ 			return ret;
+ 	} else if (dev->pm_domain) {
++		MDP_STEP(dev, "resume: calling restore_sec_cfg(%u, 0)", qcom_iommu->sec_id);
+ 		ret = qcom_scm_restore_sec_cfg(qcom_iommu->sec_id, 0);
++		MDP_STEP(dev, "resume: restore_sec_cfg ret %d", ret);
+ 		if (ret)
+ 			return ret;
+ 	}
+ 
+ 	qcom_iommu_bfb_setup(qcom_iommu);
++	MDP_STEP(dev, "resume: BFB written");
+ 
+ 	if (qcom_iommu->cfg && qcom_iommu->cfg->ctx_restore) {
+ 		/* Restore context banks lost over power collapse */
+-- 
+2.43.0
+

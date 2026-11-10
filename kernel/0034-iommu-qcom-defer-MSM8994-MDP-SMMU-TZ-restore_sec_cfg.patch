@@ -1,0 +1,121 @@
+From 9f379f60282b2898ddd189c12e47406395c44d76 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 01:43:54 +0000
+Subject: [PATCH 2/3] iommu/qcom: defer MSM8994 MDP SMMU TZ restore_sec_cfg/BFB
+ until the first domain attach
+
+Part of the reference project used: downstream 3.10 drivers/video/msm/mdss/mdss_mdp.c ("delay iommu attach until
+continous splash screen has finished handoff, as it may still be working with phys addr") and msm_iommu-v1.c,
+where restore_sec_cfg and BFB happen at attach.
+Before: the MDP SMMU was runtime-resumed at probe (ctx probe 'map after parent resume'), and the resume called
+TZ restore_sec_cfg(1, 0) while the UEFI framebuffer was still being scanned out. Reproduced on an idle SAFE
+boot by enabling the node at runtime with a streamed log: the SoC reset (PS_HOLD) inside that call, every time.
+Now resume only handles clocks until a translating domain is attached; msm DRM attaches after stopping the
+UEFI scanout, and the deferred TZ/BFB setup runs then. ioremap of the context bank needs no resume.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ drivers/iommu/arm/arm-smmu/qcom_iommu.c | 41 +++++++++++++++++++++++--
+ 1 file changed, 38 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/iommu/arm/arm-smmu/qcom_iommu.c b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+index 95e844c5f1e..c81ff45762c 100644
+--- a/drivers/iommu/arm/arm-smmu/qcom_iommu.c
++++ b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+@@ -113,6 +113,11 @@ struct qcom_iommu_dev {
+ 	void __iomem		*global_base;
+ 	u32			 sec_id;
+ 	bool			 non_secure;
++	/*
++	 * MSM8994 MDP SMMU: TZ restore_sec_cfg/BFB postponed until the first translating
++	 * domain is attached (after msm DRM has stopped the UEFI scanout).
++	 */
++	bool			 hw_deferred;
+ 	u8			 max_asid;
+ 	struct qcom_iommu_ctx	*ctxs[];   /* indexed by asid */
+ };
+@@ -634,6 +639,19 @@ static int qcom_iommu_attach_dev(struct iommu_domain *domain,
+ 
+ 	/* Ensure that the domain is finalized */
+ 	pm_runtime_get_sync(qcom_iommu->dev);
++	if (qcom_iommu->hw_deferred) {
++		MDP_STEP(qcom_iommu->dev, "attach %s: deferred restore_sec_cfg(%u, 0) now",
++			 dev_name(dev), qcom_iommu->sec_id);
++		ret = qcom_scm_restore_sec_cfg(qcom_iommu->sec_id, 0);
++		MDP_STEP(qcom_iommu->dev, "attach: restore_sec_cfg ret %d", ret);
++		if (ret) {
++			pm_runtime_put_sync(qcom_iommu->dev);
++			return ret;
++		}
++		qcom_iommu_bfb_setup(qcom_iommu);
++		qcom_iommu->hw_deferred = false;
++		MDP_STEP(qcom_iommu->dev, "attach: BFB written, programming context");
++	}
+ 	ret = qcom_iommu_init_domain(domain, qcom_iommu, dev);
+ 	pm_runtime_put_sync(qcom_iommu->dev);
+ 	if (ret < 0)
+@@ -1021,6 +1039,7 @@ static int qcom_iommu_ctx_probe(struct platform_device *pdev)
+ 	struct qcom_iommu_ctx *ctx;
+ 	struct device *dev = &pdev->dev;
+ 	struct qcom_iommu_dev *qcom_iommu = dev_get_drvdata(dev->parent);
++	bool mapafter;
+ 	int ret, irq;
+ 
+ 	ctx = devm_kzalloc(dev, sizeof(*ctx), GFP_KERNEL);
+@@ -1037,7 +1056,9 @@ static int qcom_iommu_ctx_probe(struct platform_device *pdev)
+ 	 * so the parent's clocks/GDSC are on. GPU/Venus ctxs do not
+ 	 * need this.
+ 	 */
+-	if (qcom_iommu_mdp_mapafter(dev->parent)) {
++	/* ioremap does not touch the hardware; the 8994 MDP SMMU must not be resumed here (see hw_deferred) */
++	mapafter = qcom_iommu_mdp_mapafter(dev->parent) && !qcom_iommu->hw_deferred;
++	if (mapafter) {
+ 		dev_info(dev, "MDP ctx map after parent resume\n");
+ 		ret = pm_runtime_resume_and_get(dev->parent);
+ 		if (ret)
+@@ -1046,12 +1067,12 @@ static int qcom_iommu_ctx_probe(struct platform_device *pdev)
+ 
+ 	ctx->base = devm_platform_ioremap_resource(pdev, 0);
+ 	if (IS_ERR(ctx->base)) {
+-		if (qcom_iommu_mdp_mapafter(dev->parent))
++		if (mapafter)
+ 			pm_runtime_put(dev->parent);
+ 		return PTR_ERR(ctx->base);
+ 	}
+ 
+-	if (qcom_iommu_mdp_mapafter(dev->parent))
++	if (mapafter)
+ 		pm_runtime_put(dev->parent);
+ 
+ 	irq = platform_get_irq(pdev, 0);
+@@ -1219,6 +1240,15 @@ static int qcom_iommu_device_probe(struct platform_device *pdev)
+ 		qcom_iommu->non_secure = true;
+ 	}
+ 
++	/*
++	 * Downstream 3.10 mdss_mdp.c: "delay iommu attach until continuous splash screen has
++	 * finished handoff, as it may still be working with phys addr". TZ restore_sec_cfg on the
++	 * MDP SMMU while the UEFI framebuffer is still being fetched resets the SoC (PS_HOLD),
++	 * reproduced on an idle system. Only clocks are handled until a translating domain arrives.
++	 */
++	if (of_device_is_compatible(dev->of_node, "qcom,msm8994-mdp-iommu"))
++		qcom_iommu->hw_deferred = true;
++
+ 	/*
+ 	 * Downstream 3.10 (msm_iommu_sec.c) sets up the TZ secure page-table
+ 	 * pool once at init, before any TZ-managed SMMU is programmed. Here it
+@@ -1316,6 +1346,11 @@ static int __maybe_unused qcom_iommu_resume(struct device *dev)
+ 		return ret;
+ 	MDP_STEP(dev, "resume: clocks on");
+ 
++	if (qcom_iommu->hw_deferred) {
++		MDP_STEP(dev, "resume: clocks only, TZ/BFB deferred until first domain attach");
++		return 0;
++	}
++
+ 	/*
+ 	 * MSM8994 GPU SMMU is TZ-managed (3.10 qcom,iommu-secure-id
+ 	 * = <18>). Mainline DT omits that, so non_secure would
+-- 
+2.43.0
+

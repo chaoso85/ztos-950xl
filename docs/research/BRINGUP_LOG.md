@@ -308,3 +308,21 @@ before init (< 3.3 s). 0032 adds qcom_pon.ps_hold_warm=1 (PMIC PS_HOLD reset typ
 qpnp-power-on.c) so DDR and the ramoops console survive. FULL entry: console=ttyMSM0 (nonexistent, so
 ramoops is the only console and printing is not slowed or lagged by fbcon), initcall_debug, ps_hold_warm.
 Image 2d88a55f7f12, grub.cfg 3d93e7858463.
+
+## 22. Root cause found: TZ restore_sec_cfg on the MDP SMMU during UEFI scanout (0033-0035)
+
+- pstore stayed empty even with the PS_HOLD warm reset (warm 02): the ramoops area does not survive.
+- New method: boot SAFE, enable the FULL-only DT nodes one at a time at runtime (rescue/tools/ztdt.c,
+  of_changeset status=okay) while /dev/kmsg is streamed over SSH. fuel-gauge (not bound: no parent
+  regmap), qpdst900 (apds9930/tsl2772), cci: no reset. MDP SMMU: reset, reproducibly.
+- With step markers: PTBL_SIZE ok, PTBL_INIT ret 0, populate ctx, resume: clocks on, then the SoC resets
+  inside qcom_scm_restore_sec_cfg(1, 0) - called from the ctx probe's parent resume while the UEFI
+  framebuffer is still scanned out. Downstream mdss_mdp.c delays the iommu attach (which is where 3.10
+  does restore_sec_cfg/BFB) until the splash handoff for exactly this reason.
+- 0033: the 8994 MDP SMMU is "hw_deferred": resume only enables clocks, the ctx probe does not resume
+  it, and the first translating-domain attach (msm DRM, after it stopped the UEFI scanout) does
+  restore_sec_cfg + BFB. Test: MDP SMMU enabled at runtime -> no reset; mdss + msm DRM loaded at runtime ->
+  deferred restore_sec_cfg ret 0, [drm] Initialized msm, fb0 msmdrmfb, alive.
+- 0034 markers to dev_dbg without pauses, DRM_MSM/panel back to built-in (Image 8d6fd74eaffd); FULL
+  grub entry back to the normal console without initcall_debug (grub.cfg a09926184cc5).
+- Lesson: the fbcon output lags real time by seconds; never locate a reset from the last visible line.
