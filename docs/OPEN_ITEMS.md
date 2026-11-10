@@ -1,4 +1,4 @@
-# Açık işler / Open items (güncelleme: 2026-11-10)
+# Açık işler / Open items (güncelleme: 2026-11-10, akşam)
 
 Bu liste, "sonra bakarız" diye ertelenen, varsayılan ya da yarım kalan her şeyi tutar. İş bitince `[x]` yapın, yeni ertelenen bir şey çıkınca buraya ekleyin.
 Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
@@ -8,7 +8,7 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
   - [ ] LK QSCRATCH değerlerinin cityman için gerçekten gerekli olup olmadığı ayrı ayrı denenmedi (talkman değerleri kullanılıyor).
   - [ ] Windows tarafında IP elle veriliyor (`wph/usberror/phonenet.cmd`); telefonda DHCP yok.
   - [ ] Host/OTG modu kapalı (gadget-only); gerekirse dual-role + usb-role-switch.
-- [x] **SD karttan açılış:** 2026-11-08 doğrulandı: stock UEFI -> rEFInd -> SD üzerindeki GRUB (`\EFI\BOOT\BOOTAA64.EFI`) -> Linux. Windows girişi eMMC'den `bootmgfw_real.efi` ile zincirleniyor. Kalan: eMMC'deki eski GRUB kurulumunun (varsa) kaldırılması; SD'de rootfs için bölüm yalnızca 3,99 GB.
+- [x] **SD karttan açılış:** 2026-11-08 doğrulandı: stock UEFI -> rEFInd -> SD üzerindeki GRUB (`\EFI\BOOT\BOOTAA64.EFI`) -> Linux. Windows girişi eMMC'den `bootmgfw_real.efi` ile zincirleniyor. Kalan: eMMC'deki eski GRUB kurulumunun (varsa) kaldırılması. (SD'de artık ztOS kökü var: 2. bölüm 25,7 GiB, içindeki ext4 10 GiB; bkz. 1d.)
 - [ ] (!) **Tam eMMC yedeği:** henüz alınmadı; ilk denemeden önce şart.
 - [x] **RPM regülatör takılması:** bu çekirdekte takılma yok; RPM geç ama açılıyor (~8 sn). İsteğe bağlı: RPM'i erken açtırmak.
 - [ ] **PSCI eksik:** kapatma / yeniden başlatma güvenilmez.
@@ -17,7 +17,7 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 - [x] **Ekran:** 2026-11-10 çalışıyor (msm DRM, Sergej, 1440x2560, konsol panelde, 4/4 temiz açılış). Yollar: 0018/0021 (DSI saatleri), 0026 (MDP identity domain), 0027/0031 (TZ güvenli sayfa tablosu havuzu), **0034** (MDP SMMU TZ `restore_sec_cfg` DRM attach'ına kadar ertelendi; kök neden `research/MDP_SMMU_RESET.md`).
 - [ ] **GPU** (2026-11-10: GPU, GPU SMMU ve OCMEM DT'de kapalı — 0024/0028. Açılırken MDP'deki kural uygulanacak: rail/saat açılmadan SMMU'ya TZ/BFB/context yazması yok.) (Eski not: 0019 iommu `tbu` saatini çıkardı → GX kapalıyken SMMU yazması CPU'yu kilitledi; 0020 geri koydu, `stuck at 'off'` uyarısı beklenen; firmware initramfs'e `build_initramfs.sh ... fw/` ile giriyor, depoda yok; denenmedi): `a420_pm4.fw` / `a420_pfp.fw` initramfs'te yok (61 sn bekleme); `oxili_gfx3d_clk` stuck (GPU iommu resume, GX güç alanı); adreno `vdd`/`vddcx` ve DSI `lab_reg`/`ibb_reg` DT'de yok; GPU cooling device kaydı başarısız.
 - [ ] `fb0: framebuffer is not in virtual address space` (fbcon msm fbdev'e geçerken).
-- [x] `NR_CPUS` 6 -> 8 (950 XL 4xA57+4xA53) ve A53/A57 için ayrı PMU (patch 0017). Cihazda henüz denenmedi.
+- [x] `NR_CPUS` 6 -> 8 (950 XL 4xA57+4xA53) ve A53/A57 için ayrı PMU (patch 0017). Cihazda doğrulandı: 8 çekirdek açılıyor.
 - [x] NFC (pn547) DT'de kapatıldı: arka kapak yokken polarite tespiti 33 sn bloklıyordu. Kapak takılınca `status = "disabled"` kaldırılacak.
 - [ ] `psci-cpuidle` -ENODEV: CPU idle durumları yok (güç tüketimi).
 - [x] (DT'de kapatıldı/düzeltildi, patch 0019; denenmedi) DT'de olmayan/yanlış donanım (ad7147 IRQ sözdizimi hatası da düzeltildi): si470x (5-0011), fan53555 (5-006c), ad714x (4-002c, IRQ yok), mpu6050 (2-0068), ccs sensörleri (6-0020, 6-006c, 7-0020); tsl2772 supply'ları; `i2c_qup f9967000` tx DMA kanalı.
@@ -40,10 +40,24 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 - [ ] ADSP: imzalı `qcadsp8994.mbn` (FFU'dakiyle aynı hash) kurulumda telefondan alınıp initramfs/firmware yoluna konacak; ses kartı ondan sonra.
 - [ ] Wi-Fi: PCIe1 + `GCC_PCIE_1_BCR` reset + Android QCA6174 `qwlan30.bin` / cihazın `bdwlan30.bin`'i. BT: `rampatch_00440302.bin` / `nvm_00440302.bin` ve güç sırası.
 
+## 1d. 2026-11-10 akşam: ztOS kökü, CPU saatleri, TSENS (ayrıntı: `research/BRINGUP_LOG.md` 25–31)
+- [x] ztOS kökü SD'nin 2. bölümünden açılıyor (`ztos.root=LABEL=ZR_ARCH`); yazılım renderlama (llvmpipe) `/etc/ztos/session.env` ile zorlanmış.
+- [x] A57 960 MHz + CCI 538 MHz açılışta (`ztboost.ko`), S11 1,0 V; hız bin'i 0 (2,0 GHz parça); Windows PEP tabloları çıkarıldı; TSENS thermal zone'ları (0037).
+- [ ] **A57'yi kademeli yükselt** (1248 → 1536 MHz, tavan 1225 mV) TSENS sıcaklığı izlenerek; A57 şimdiden boşta denecek yükte ~75 °C: sıcaklık payı ve soğutma/azaltma politikası (hot trip 115 °C DT'de var, eylem yok).
+- [ ] **A53 787 MHz üstü:** S8'de 1180–1225 mV köşesi (CCI ile ortak) + mem-acc.
+- [ ] **DDR/BIMC saati:** DRAM gecikmesi ~215 ns (normal ~100); RPM yolu ya da oy etkisiz kaldı. İnterconnect oyu denendi, etkisi yok.
+- [ ] **Gerçek cpufreq sürücüsü:** `clk-alpha-pll` + mux/div sağlayıcı + OPP tablosu (`ztboost` geçici çözüm); SoC'nin yük altında A57 saatini kendisinin düşürmesi (4 çekirdekte ~862 MHz) incelenecek.
+- [ ] TSENS: yedek (redundancy) kalibrasyon bölgesi (+0x464…), sensör 5 ve 11'in sahibi, 0–4 bağlı değil; hot trip için gerçek eylem.
+- [ ] Kalıcı 8 çekirdekli cpuset: zrnperfd her şeyi A53'e (cpu0-3) sabitliyor; A57 hızlandırması bundan faydalanmıyor.
+- [ ] Çekirdek modülleri rootfs `/lib/modules` içine; kök dosya sistemi bölüm boyutuna genişletilecek (10 GiB / 25,7 GiB).
+- [ ] ztOS: `no usable backlight` (arka ışık), BT, ses, Wi-Fi; `zerone` sudo parolası ztOS'ta değişmiş görünüyor (Welcome uygulaması sonrası).
+- [x] GRUB tek seferlik giriş (`grubenv`) FAT'a yazamadığı için çalışmadı → `set default=2`; rescue girdileri menüden elle seçilir.
+- [ ] /dev/mem ile QFPROM okurken dikkat: yalnızca düzeltilmiş alias'lar (0xfc4bc0b0, 0xfc4bc0d0…) güvenli; ham alias'lar (0xfc4b80b0, 0xfc4bc000) telefonu resetliyor.
+
 ## 2. Çekirdek birleştirme (master + camss) — bilerek bırakılanlar
 - [ ] `camss` dalındaki mmcc değişiklikleri alınmadı: mdss GDSC `GENPD_FLAG_NO_STAY_ON`, `oxili_gx` supply adı `vdd-gfx`, `OXILICX_AXI_CLK` binding'i. GPU/ekran sorun çıkarırsa ilk şüpheliler.
 - [ ] `sync-dual-dsi` ayarı iki dalda farklı; `master`'ınki tutuldu.
-- [ ] Yalnızca `Image` + DTB derlendi; modüller ve tam test yok. Cihazda açılış hiç denenmedi.
+- [ ] Yalnızca `Image` + DTB (ve elle derlenen birkaç modül) üretildi; tam modül seti ve kapsamlı test yok. Cihazda açılış çalışıyor.
 - [ ] Duke paneli için DT bağlanmadı; Sergej varsayıldı.
 - [ ] İki dalın uyuşmayan çift uygulamaları (display, interconnect) temiz tek seriye indirilecek (mainline'a rebase için).
 
@@ -51,7 +65,8 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 - [ ] Mesa/freedreno ile gerçek render testi yok (`kmscube`, `glmark2-es2`).
 - [ ] Geçici çözümleri kök nedene indir: 32 MiB GEM başlangıcı, autosuspend yok / GX hep açık, SP/TP elle güç açma, TZ SEA veren register dump'ı, OCMEM sırası (bkz. `research/FORK_ANALYSIS.md`).
 - [ ] `a420_pm4.fw` / `a420_pfp.fw` yeniden dağıtım lisansını `linux-firmware` WHENCE'inde doğrula.
-- [ ] GPU olmazsa ztMETRO'nun yazılım render (simpledrm + llvmpipe) ile çalışıp çalışmadığı denenmedi.
+- [x] ztMETRO yazılım render (llvmpipe, `kms_swrast`) ile çalışıyor ama 3–9 fps; GPU şart.
+- [ ] **Sıradaki iş:** GPU güç sırası (rail → saat → SMMU; gerçek domain bağlanana kadar TZ/BFB/context yok), `a420_pm4/pfp.fw` initramfs'e, ardından `kmscube` / `glmark2-es2`.
 - [ ] MDP5 dual-LM / 20nm DSI PHY yamaları fork'ta "needs review".
 
 ## 4. Kamera
@@ -66,7 +81,7 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 - [ ] FPGA (iCE5LP2K) bit akışının bitiş sınırı sıfır dolgu tahminine dayanıyor; donanımda doğrulanmadı.
 - [ ] Lattice kalibrasyon dosyasının yeri bulunamadı.
 - [ ] UEFI'nin Sergej / Duke seçimi (panel ID okuma) doğrulanmadı.
-- [ ] Windows PEP tabloları (regülatör ve saat eşlemeleri) incelenmedi.
+- [x] Windows PEP tabloları: CPU/CCI frekans-voltaj tabloları çıkarıldı (`research/BRINGUP_LOG.md` 30). Kalan: GPU/bellek/regülatör eşlemeleri.
 - [ ] Downstream MDSS dtsi dosyaları çekilmedi.
 - [ ] Telefondan canlı veri toplama (root uygulama) fikri bırakıldı; Linux açılınca kendisi okuyabilir.
 
@@ -82,3 +97,4 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 - [x] GitHub'da yalnızca `chaoso85` ve GitHub noreply adresi kullanılır; `Co-Authored-By` yok, commit imzalama kapalı.
 - [ ] Yeni repoda commit sayfasında görünen yazar adı kontrol edilecek (yalnızca `chaoso85` olmalı).
 - [ ] Diğer repolardaki eski commit yazarları gözden geçirilecek (bu oturumda başka repo bağlanmadı).
+- [x] Araştırma sayfalarının İngilizce sürümleri `docs/research/en/` altında (2026-11-10).

@@ -1,5 +1,7 @@
 # Lumia 950 XL (cityman, RM-1085): DSDT cihaz envanteri
 
+English version: [`en/DEVICES.md`](en/DEVICES.md)
+
 Kaynak: stock W10M FFU 10586.13169, PLAT\ACPI\dsdt.aml (iasl 20200925 ile çözüldü). 128 aygıt.
 
 | Aygıt | HID | UID | MMIO base/len | IRQ (GIC SPI+32) | GPIO (tür:kaynak:pin) | I2C (adr@hız → denetleyici) |

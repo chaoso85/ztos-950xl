@@ -14,7 +14,7 @@
 
 </div>
 
-> **Durum: erken bring-up.** Çekirdek telefonda SD karttan açılıyor. Panel `drm/msm` ile çalışıyor (1440x2560, konsol ekranda); USB üzerinden SSH ile kurtarma kabuğu ve SD kart çalışıyor. GPU, kamera, ses, Wi-Fi henüz çalışmıyor. Ekranı günlerce engelleyen açılış reset'i çözüldü: [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md) (İngilizce). Tüm kronoloji: [`docs/research/BRINGUP_LOG.md`](docs/research/BRINGUP_LOG.md). Tam eMMC yedeği almadan bu depodaki hiçbir şeyi tek cihazınıza yüklemeyin.
+> **Durum: erken bring-up.** Çekirdek telefonda SD karttan açılıyor ve **ztOS kök dosya sistemi (ztMETRO kabuğu) kartın 2. bölümünden çalışıyor**; GPU hâlâ kapalı olduğu için yazılımla (llvmpipe) çiziliyor. Panel `drm/msm` ile çalışıyor (1440x2560), USB üzerinden SSH ile kurtarma kabuğu ve SD kart çalışıyor, Cortex-A57 kümesi ve CCI açılışta hızlandırılıyor (960 / 538 MHz; bootloader varsayılanı 384 / 269 MHz) ve SoC sıcaklık sensörleri thermal zone olarak görünüyor. GPU, kamera, ses ve Wi-Fi henüz çalışmıyor; sıradaki iş GPU. Ekran reset'inin kök nedeni: [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md) (İngilizce). Tüm kronoloji: [`docs/research/BRINGUP_LOG.md`](docs/research/BRINGUP_LOG.md) ([English](docs/research/en/BRINGUP_LOG.md)). Açık işler: [`docs/OPEN_ITEMS.md`](docs/OPEN_ITEMS.md). Tam eMMC yedeği almadan bu depodaki hiçbir şeyi tek cihazınıza yüklemeyin.
 
 ## Hedef
 
@@ -34,12 +34,15 @@ Lumia 950 XL (RM-1085) üzerinde gerçek bir Linux telefon işletim sistemi çal
 
 ```
 SD kart  ──►  Windows-on-ARM UEFI (eMMC'de, dokunulmaz) ──► rEFInd
-                 │  SD üzerindeki GRUB (\EFI\BOOT\BOOTAA64.EFI)
+                 │  SD üzerindeki GRUB (\EFI\BOOT\BOOTAA64.EFI, /ztos/grub.cfg)
                  ▼
            Linux çekirdeği (mainline + Lumia yamaları) + cityman DTB   (acpi=no, device tree)
                  │
                  ▼
-           ztOS GSI (ztMETRO)  +  cihaz katmanı (/vendor/ztos/manifest.toml, ztOSIAL)
+           kurtarma initramfs'i (USB gadget + SSH, SD günlükçü, CPU/CCI hızlandırma)
+                 │  ztos.root=LABEL=ZR_ARCH → switch_root
+                 ▼
+           SD'nin 2. bölümünde ztOS kökü (Arch Linux ARM, ztMETRO, ztOSIAL)
 ```
 
 ## Donanım durumu
@@ -51,6 +54,9 @@ Açıklama: ✅ telefonda çalışıyor · 🟡 kısmen çalışıyor / iş var 
 | eMMC / SD | ✅ | eMMC görünüyor (HS200, dokunulmadı). SD çalışıyor; `no-1-8-v` ile 3.3 V yüksek hız (sabit 2.95 V vqmmc). |
 | Dokunmatik (Synaptics RMI4) | ✅ | S3708AR giriş aygıtı olarak kayıt oluyor. |
 | Ekran (çift DSI, komut modu) | ✅ | MDP5 v1.9 + çift DSI + Sergej panel, 1440x2560, konsol panelde. 4/4 temiz açılış. MDP SMMU'nun TZ kurulumu, DRM UEFI framebuffer'ını devralana kadar erteleniyor (yama 0034). DRM açılırken bir kez `pp done time out` kalıyor. |
+| CPU saatleri | 🟡 | Henüz cpufreq sürücüsü yok. Açılışta `ztboost.ko` (kurtarma initramfs'i) PM8994 S11 rayı 1,0 V iken A57 kümesini 960 MHz'e (384'ten) ve CCI'yi 538 MHz'e (269'dan) çıkarıyor; A53 763 MHz'de kalıyor. Çok çekirdekli yükte SoC A57 saatini kendisi düşürüyor (4 çekirdek ~862 MHz). CPU 2,0 GHz hız bin'i (sigorta `0xFC4BC0B0`); Windows'un kendi frekans/voltaj tabloları (A57 1958 MHz'e kadar, tavan 1225 mV) çıkarıldı. DDR/BIMC saati hâlâ yönetilmiyor (DRAM gecikmesi ~215 ns). |
+| Sıcaklık sensörleri | ✅ | TSENS v0.1, 16 sensör (yama 0037, kalibrasyon QFPROM'dan): cpu0-7 ve gpu için thermal zone. Yazılım renderlama ile boşta denecek sıcaklıklar: A53 62-67 °C, A57 65-77 °C. Yedek (redundancy) sigorta bölgesi ele alınmadı. |
+| ztOS kullanıcı alanı | 🟡 | Kök SD'nin 2. bölümünden açılıyor (systemd ayakta, `zerone` ile SSH, ztOSIAL servisleri). ztMETRO Mesa `llvmpipe` ile çalışıyor (`/etc/ztos/session.env` ile zorlanmış): bootloader saatlerinde 3-5 fps, A57/CCI hızlandırmasından sonra 7-9 fps. GPU gerekli. |
 | GPU (Adreno 430) | 🔴 | DT'de kapalı (SMMU'su ve OCMEM ile birlikte): SMMU'su GX güçsüzken bağlanınca SoC reset/donma. Firmware `a420_pm4/pfp.fw` linux-firmware'den. |
 | Kamera | 🔴 | CAMSS ve VFE/Venus SMMU'ları aynı SMMU nedeniyle DT'de kapalı; CCI probe oluyor. CCS sürücüsü sensörlerle daha önce çalışmamıştı. |
 | USB gadget (kurtarma/SSH) | ✅ | DWC3 + HS PHY (TCSR yönlendirme + LK QSCRATCH değerleri). Windows ACM + RNDIS görüyor, SSH çalışıyor. |
@@ -69,9 +75,13 @@ Açıklama: ✅ telefonda çalışıyor · 🟡 kısmen çalışıyor / iş var 
 - [x] SD karttan ilk cihaz üstü açılış (efifb konsolu)
 - [x] Ekran: msm DRM ile Sergej paneli, açılış SMMU reset'i çözüldü
 - [x] Açılış süresi: init ~3 sn (fuel gauge init açılış yolundan çıkarıldı)
+- [x] SD karttaki ztOS kök dosya sistemi açılıyor (yazılım renderlama)
+- [x] A57 / CCI saatleri açılışta yükseltiliyor; CPU hız bin'i ve Windows frekans/voltaj tabloları bulundu
+- [x] TSENS sıcaklık sensörleri (yama 0037)
 - [ ] Kalan ekran uyarıları
 - [ ] GPU: SMMU'dan önce güç sırası, ardından `kmscube` / `glmark2-es2`
-- [ ] ztOS GSI rootfs + `ztconflo` `uefi-esp` flash yöntemi + ztOSIAL manifest
+- [ ] Sıcaklık izlemeli kademeli A57 artışı, 787 MHz üstü A53, DDR/BIMC saati, gerçek cpufreq sürücüsü
+- [ ] `ztconflo` `uefi-esp` flash yöntemi + ztOSIAL manifest
 - [ ] Wi-Fi, ses, şarj, sensörler
 - [ ] Kamera: CCS sensör bring-up, ardından AF/OIS/flaş, libcamera
 - [ ] Genel yüklenebilir imaj / yükleyici
@@ -79,13 +89,13 @@ Açıklama: ✅ telefonda çalışıyor · 🟡 kısmen çalışıyor / iş var 
 ## Depo yapısı
 
 ```
-kernel/            Android4Lumia950/linux master üstüne yama serisi 0001-0036 (0029/0030 ekle-geri al, 0033 geçici hata ayıklama; tarihçe olarak duruyor), kernel .config, derlenmiş DTB'ler
-rescue/            Kurtarma initramfs'i (init, USB gadget, SSH, SD günlükçü), GRUB menüsü (varsayılan FULL DT, ikinci SAFE DT), SD/ESP betikleri
-rescue/tools/      Hata ayıklama modülleri: ztdt.c (DT düğümünü çalışma anında açar), ztsec.c (TZ güvenli sayfa tablosu SCM çağrıları)
-docs/research/     Bulgular (donanım boşlukları, GPU/kamera raporu, çatal analizi, ACPI cihaz haritası, kamera ayarları)
+kernel/            Android4Lumia950/linux master üstüne yama serisi 0001-0037 (0029/0030 ekle-geri al, 0033 geçici hata ayıklama; tarihçe olarak duruyor), kernel .config, derlenmiş DTB'ler
+rescue/            Kurtarma initramfs'i (init, USB gadget, SSH, SD günlükçü, açılışta CPU/CCI hızlandırma), GRUB menüsü (FULL DT rescue, SAFE DT rescue, ztOS (varsayılan), Windows, önceki çekirdek yedeği), SD/ESP betikleri
+rescue/tools/      Hata ayıklama ve açılış modülleri: ztboost.c (açılışta A57/CCI saatleri), ztcpu.c / ztcci.c (saat deneyleri), ztfuse.c / ztfuse2.c (hız bin'i ve TSENS kalibrasyon sigortaları), ztts.c (elle TSENS okuma), ztspmi.c (PM8994 buck dökümü), ztdt.c (DT düğümünü çalışma anında açar), ztsec.c (TZ güvenli sayfa tablosu SCM çağrıları)
+docs/research/     Bulgular (bring-up günlüğü, donanım boşlukları, GPU/kamera raporu, çatal analizi, ACPI cihaz haritası, kamera ayarları); Türkçe aslı ve `docs/research/en/` altında İngilizce sürümleri
 ```
 
-Başlangıç için [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md), [`docs/research/PORTING_GAPS.md`](docs/research/PORTING_GAPS.md) ve [`docs/research/SOURCES.md`](docs/research/SOURCES.md) dosyalarına bakın. Araştırma notlarının çoğu Türkçe yazıldı.
+Başlangıç için [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md), [`docs/research/PORTING_GAPS.md`](docs/research/PORTING_GAPS.md) ve [`docs/research/SOURCES.md`](docs/research/SOURCES.md) dosyalarına bakın. Her araştırma notunun Türkçe aslı ve İngilizce sürümü (`docs/research/en/`) var.
 
 ## Çekirdeği derleme
 

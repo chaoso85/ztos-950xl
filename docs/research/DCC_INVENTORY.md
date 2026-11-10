@@ -1,5 +1,7 @@
 # Kamera DCC (CDCC) envanteri - kaynak: Windows/System32/Drivers/*.dcc
 
+English version: [`en/DCC_INVENTORY.md`](en/DCC_INVENTORY.md)
+
 Dosya adi = kamera modul kimligi (sensorun NVM/ID dizgisi). Icerik satirlari dosyanin kendi degisiklik gecmisinden alinmistir.
 
 | Dosya | Boyut | Ayar ailesi (dosya icinden) | Notlar |

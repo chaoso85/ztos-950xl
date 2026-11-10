@@ -1,5 +1,7 @@
 # GPU (Adreno 430) ve Kamera: kaynak birlestirme raporu (2026-11-07)
 
+English version: [`en/GPU_CAMERA_REPORT.md`](en/GPU_CAMERA_REPORT.md)
+
 Kaynaklar: mainline torvalds/linux (master), Android4Lumia950/linux (master, camss, mdss, iommu, msm8994-6.x dallari),
 Android4Lumia950/android_kernel_mmo_msm8994 (downstream, msm8994-v2.1.dtsi, gpu/camera dtsi), bu FFU (DSDT, qccam*.sys, .dcc, SOFTWARE hive).
 "DOGRULANDI" = kaynak kodda/dosyada gordum. "CIKARIM" = kanitlardan sonuc, donanimda test edilmedi.
@@ -61,3 +63,6 @@ GPU "yari calisiyor" degerlendirmen dogru: calisan ama guc yonetimsiz, hack'li. 
 
 ## 4. Onerilen sonraki adim
 Android4Lumia950/linux master (+camss) dalini tam cekip: (a) mainline'a gore diff'ini sayisal cikar, (b) bizim tabanimiz olarak sec, (c) GPU hack'lerini kok nedene indirme listesini cikar. Baska bir secenek: tabani mainline tutup yamalari tek tek rebase etmek (daha temiz, daha yavas).
+
+## 5. Güncelleme (2026-11-10)
+Taban seçildi ve derlendi (master + camss'in benzersiz parçaları, yamalar 0001-0037). GPU, SMMU'su ve OCMEM, güç sırası çözülene kadar cityman DT'de kapalı (MDP SMMU kuralı geçerli: raylar ve saatler açılıp gerçek bir domain bağlanmadan TZ/BFB/context yazması yok). Kamera/Venus/VFE SMMU'ları aynı nedenle kapalı. ztOS şu an yazılım renderlama (llvmpipe) ile çalışıyor. Zaman çizelgesi: `BRINGUP_LOG.md`.

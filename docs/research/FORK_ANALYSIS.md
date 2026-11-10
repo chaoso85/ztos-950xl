@@ -1,5 +1,7 @@
 # Android4Lumia950/linux cati analizi (2026-11-07)
 
+English version: [`en/FORK_ANALYSIS.md`](en/FORK_ANALYSIS.md)
+
 Kaynak: github.com/Android4Lumia950/linux, dallar: master (2026-09-10), camss (2026-08-29), mdss, iommu, msm8994-6.x. Yazar: sonic011gamer (+ Dmitry Baryshkov'dan alinan qcom_iommu serisi).
 Ozel commit sayisi (master, 2026-08-20 sonrasi): 43; dokunulan dosya: 71. Tum liste: ztos-lumia/fork_master_commits.txt (bulut calisma alani).
 ONEMLI: Cityman ekran paneli (Sergej, panel-microsoft-sergej.c) ve CAMSS 8x94 `camss` dalinda; master'da talkman paneli (AMS567DJ06) var. Tam taban = master + camss birlesimi (henuz birlestirilmemis).
@@ -32,3 +34,5 @@ Not: UEFI'de Sergej/Duke secimi (ID okuma) hala dogrulanmadi; 950 XL'de Sergej v
 A) Hizli yol: fork master+camss'i taban al, derle, aygitta dene (rescue icin USB gadget gerekli: UC120 + usb3 high-speed).
 B) Temiz yol: yamalari mainline'a seri halinde rebase et (etiketli olanlari once temizle). A ile baslayip B'ye gecmek mantikli.
 Sonraki is: kernel'i derleyip (aarch64 cross) fork master+camss birlesimini cikarmak ve acik cakismalari raporlamak.
+
+Güncelleme (2026-11-10): master + camss birleşimi yapıldı ve yama serisi (0001-0037) olarak çıkarıldı; bkz. `BRINGUP_LOG.md` ve kök `README.md`.

@@ -33,3 +33,6 @@ What each external source was used for. No proprietary binaries from any of them
 |---|---|
 | Stock Windows 10 Mobile FFU (10586.13169) | ACPI DSDT/SSDT (addresses, IRQs, GPIOs), UEFI panel XML, firmware inventory, camera `.dcc` files and registry |
 | UEFI (Lumia950XLPkg) | Boot chain, framebuffer handoff, memory map |
+| Stock DSDT (`FUSE` operation region) | CPU speed bin: PTE at 0xFC4BC0B0, `PTE & 7` (this chip: bin 0 = 2.0 GHz part) |
+| `QCpep8994.sys` (Windows PEP driver in the FFU) | CPU/CCI frequency and voltage tables (A53 to 1555.2 MHz, A57 to 1958.4 MHz, ceiling 1225 mV) |
+| Downstream `clock-cpu-8994.c`, `msm8974-tsens.c`, `msm8992-regulator.dtsi` (Android4Lumia950 MMO kernel) | CPU PLL/mux layout and safe source (AUX/GPLL0), TSENS sensor map and calibration layout, rail ceilings |

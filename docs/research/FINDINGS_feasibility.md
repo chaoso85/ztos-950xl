@@ -1,5 +1,7 @@
 # ztOS -> Lumia 950 XL (cityman): fizibilite notları (2026-11-07)
 
+English version: [`en/FINDINGS_feasibility.md`](en/FINDINGS_feasibility.md)
+
 ## ztOS mimarisi (repolar klonlandı: ztos-ial, ztconflo, ztos-devices)
 - GSI (ztMETRO + apps + SDK, Arch Linux ARM aarch64) + cihaz katmanı (/vendor/ztos/manifest.toml)
 - ztOSIAL: D-Bus arayüzleri (Display1, Modem1, Power1, Sensors1, Haptics1, Lights1 ...).
@@ -41,3 +43,7 @@ YOK/etkin değil: USB (usb3 SoC dtsi'de var, cityman'da etkin değil), MDSS/DSI 
 - Risk 4 (SD'den açılış): **çözüldü**: stock UEFI -> rEFInd -> SD üzerindeki GRUB (`\EFI\BOOT\BOOTAA64.EFI`) -> Linux.
 - Risk 2 (RPM takılması): bu çekirdekte takılma yok; RPM regülatörleri geç ama açılıyor (~8 sn).
 - Risk 3 (GPU/MDSS): MDP5/DSI/GPU bağlanıyor ama ekran henüz yanmıyor (bkz. `BRINGUP_LOG.md`).
+
+## Güncelleme (2026-11-10)
+- Risk 3 yanıtlandı: ekran msm DRM ile çalışıyor ve ztMETRO, SD kartın 2. bölümündeki ztOS kökünde **llvmpipe** (yazılım GLES 3.2) ile açılıyor; GPU açılana kadar yavaş (bootloader CPU saatlerinde 3-5 fps, A57/CCI hızlandırmasından sonra 7-9 fps).
+- Risk 2/PSCI: `safe-reboot` güvenilir çalışıyor; telefonun kendi kapatma/yeniden başlatması hâlâ PS_HOLD üzerinden.

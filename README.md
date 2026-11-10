@@ -14,7 +14,7 @@
 
 </div>
 
-> **Status: early bring-up.** The kernel boots on the phone from an SD card. The panel works with `drm/msm` (1440x2560, console on screen), and the rescue shell over USB (SSH) and the SD card work. GPU, camera, audio and Wi-Fi do not work yet. The boot-time SoC reset that blocked the display for days is fixed: [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md). Full chronology: [`docs/research/BRINGUP_LOG.md`](docs/research/BRINGUP_LOG.md) (Turkish). Do not flash anything from this repo to your only device without a full eMMC backup.
+> **Status: early bring-up.** The kernel boots on the phone from an SD card and the **ztOS root filesystem (ztMETRO shell) runs from the card's second partition**, rendered in software (llvmpipe) because the GPU is still disabled. The panel works with `drm/msm` (1440x2560), the USB rescue shell (SSH) and the SD card work, the Cortex-A57 cluster and the CCI are raised at boot (960 / 538 MHz, bootloader default 384 / 269 MHz) and the SoC temperature sensors are exposed as thermal zones. GPU, camera, audio and Wi-Fi do not work yet; the GPU is next. Display reset root cause: [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md). Full chronology: [`docs/research/en/BRINGUP_LOG.md`](docs/research/en/BRINGUP_LOG.md) (also in [Turkish](docs/research/BRINGUP_LOG.md)). Open items: [`docs/OPEN_ITEMS.md`](docs/OPEN_ITEMS.md). Do not flash anything from this repo to your only device without a full eMMC backup.
 
 ## Goal
 
@@ -34,12 +34,15 @@ Run a real Linux phone OS on the Lumia 950 XL (RM-1085), without touching Window
 
 ```
 SD card  ──►  Windows-on-ARM UEFI (eMMC, untouched) ──► rEFInd
-                 │  GRUB on the SD (\EFI\BOOT\BOOTAA64.EFI)
+                 │  GRUB on the SD (\EFI\BOOT\BOOTAA64.EFI, /ztos/grub.cfg)
                  ▼
            Linux kernel (mainline + Lumia patches) + cityman DTB   (acpi=no, device tree)
                  │
                  ▼
-           ztOS GSI (ztMETRO)  +  device layer (/vendor/ztos/manifest.toml, ztOSIAL)
+           rescue initramfs (USB gadget + SSH, SD logger, CPU/CCI boost)
+                 │  ztos.root=LABEL=ZR_ARCH → switch_root
+                 ▼
+           ztOS root on SD partition 2 (Arch Linux ARM, ztMETRO, ztOSIAL)
 ```
 
 ## Hardware status
@@ -51,6 +54,9 @@ Legend: ✅ works on the phone · 🟡 partly works / needs work · 🔴 not wor
 | eMMC / SD | ✅ | eMMC is visible (HS200, left untouched). SD works; `no-1-8-v` keeps it at 3.3 V high-speed (fixed 2.95 V vqmmc). |
 | Touch (Synaptics RMI4) | ✅ | S3708AR registers as an input device. |
 | Display (dual DSI, command mode) | ✅ | MDP5 v1.9 + dual DSI + Sergej panel, 1440x2560, fbcon on the panel. 4/4 clean boots. The MDP SMMU's TZ setup is deferred until DRM takes over from the UEFI framebuffer (patch 0034). One `pp done time out` at DRM init remains. |
+| CPU clocks | 🟡 | No cpufreq driver yet. At boot `ztboost.ko` (rescue initramfs) raises the A57 cluster to 960 MHz (from 384) and the CCI to 538 MHz (from 269) with the PM8994 S11 rail at 1.0 V; A53 stays at 763 MHz. The SoC lowers the A57 clock itself under multi-core load (4 cores ~862 MHz). The CPU is the 2.0 GHz speed bin (fuse read at `0xFC4BC0B0`); Windows' own frequency/voltage tables (A57 up to 1958 MHz, ceiling 1225 mV) are extracted. DDR/BIMC clock is still unmanaged (DRAM latency ~215 ns). |
+| Thermal sensors | ✅ | TSENS v0.1, 16 sensors (patch 0037, calibration from QFPROM): thermal zones for cpu0-7 and gpu. Idle-ish temperatures with software rendering: A53 62-67 °C, A57 65-77 °C. Redundancy fuse region not handled. |
+| ztOS userland | 🟡 | Root boots from SD partition 2 (systemd up, SSH as `zerone`, ztOSIAL services). ztMETRO runs on Mesa `llvmpipe` (forced in `/etc/ztos/session.env`): 3-5 fps at bootloader clocks, 7-9 fps after the A57/CCI boost. Needs the GPU. |
 | GPU (Adreno 430) | 🔴 | Disabled in DT (with its SMMU and OCMEM): attaching its SMMU with GX unpowered reset or hung the SoC. Firmware `a420_pm4/pfp.fw` comes from linux-firmware. |
 | Camera | 🔴 | CAMSS and the VFE/Venus SMMUs are disabled in DT for the same SMMU reason; CCI probes. The CCS driver did not work with the sensors before. |
 | USB gadget (rescue/SSH) | ✅ | DWC3 + HS PHY (TCSR routing + LK QSCRATCH values). Windows sees ACM + RNDIS, SSH works. |
@@ -69,9 +75,13 @@ Legend: ✅ works on the phone · 🟡 partly works / needs work · 🔴 not wor
 - [x] First on-device boot from SD (efifb console)
 - [x] Display: msm DRM on the Sergej panel, boot-time SMMU reset fixed
 - [x] Boot time: init at ~3 s (fuel gauge init moved off the boot path)
+- [x] ztOS root filesystem on the SD card boots (software rendering)
+- [x] A57 / CCI clocks raised at boot; CPU speed bin and Windows frequency/voltage tables found
+- [x] TSENS temperature sensors (patch 0037)
 - [ ] Remaining display warnings
 - [ ] GPU: power sequencing before its SMMU, then `kmscube` / `glmark2-es2`
-- [ ] ztOS GSI rootfs + `ztconflo` `uefi-esp` flash method + ztOSIAL manifest
+- [ ] Gradual A57 raise with temperature monitoring, A53 above 787 MHz, DDR/BIMC clock, a real cpufreq driver
+- [ ] `ztconflo` `uefi-esp` flash method + ztOSIAL manifest
 - [ ] Wi-Fi, audio, charging, sensors
 - [ ] Camera: CCS sensor bring-up, then AF/OIS/flash, libcamera
 - [ ] Generic flashable image / installer
@@ -79,13 +89,13 @@ Legend: ✅ works on the phone · 🟡 partly works / needs work · 🔴 not wor
 ## Repository layout
 
 ```
-kernel/            Patch series 0001-0036 on top of Android4Lumia950/linux master (0029/0030 add and revert, 0033 is a temporary debug patch kept as history), kernel .config, built DTBs
-rescue/            Rescue initramfs (init, USB gadget, SSH, SD logger), GRUB menu (FULL DT default, SAFE DT second), SD/ESP scripts
-rescue/tools/      Debug modules: ztdt.c (enable a DT node at runtime), ztsec.c (TZ secure page-table SCM calls by hand)
-docs/research/     Findings (hardware gaps, GPU/camera report, fork analysis, ACPI device map, camera config)
+kernel/            Patch series 0001-0037 on top of Android4Lumia950/linux master (0029/0030 add and revert, 0033 is a temporary debug patch kept as history), kernel .config, built DTBs
+rescue/            Rescue initramfs (init, USB gadget, SSH, SD logger, boot-time CPU/CCI boost), GRUB menu (FULL DT rescue, SAFE DT rescue, ztOS (default), Windows, previous-kernel fallback), SD/ESP scripts
+rescue/tools/      Debug and boot modules: ztboost.c (boot-time A57/CCI clocks), ztcpu.c / ztcci.c (clock experiments), ztfuse.c / ztfuse2.c (speed bin and TSENS calibration fuses), ztts.c (manual TSENS read), ztspmi.c (PM8994 buck dump), ztdt.c (enable a DT node at runtime), ztsec.c (TZ secure page-table SCM calls by hand)
+docs/research/     Findings (bring-up log, hardware gaps, GPU/camera report, fork analysis, ACPI device map, camera config); Turkish originals plus English versions in `docs/research/en/`
 ```
 
-Start with [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md), [`docs/research/PORTING_GAPS.md`](docs/research/PORTING_GAPS.md) and [`docs/research/SOURCES.md`](docs/research/SOURCES.md). Most research notes are currently written in Turkish.
+Start with [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md), [`docs/research/PORTING_GAPS.md`](docs/research/PORTING_GAPS.md) and [`docs/research/SOURCES.md`](docs/research/SOURCES.md). Every research note has a Turkish original and an English version (`docs/research/en/`).
 
 ## Building the kernel
 

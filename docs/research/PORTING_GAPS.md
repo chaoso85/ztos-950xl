@@ -1,5 +1,7 @@
 # Lumia 950 XL (cityman, RM-1085): mainline Linux için eksik donanım tanımları
 
+English version: [`en/PORTING_GAPS.md`](en/PORTING_GAPS.md)
+
 Üç bağımsız kaynak çapraz karşılaştırıldı:
 1. **Stock W10M FFU** (10586.13169): PLAT\ACPI DSDT/SSDT, UEFI DXE sürücüleri, MainOS sürücü/firmware dosyaları
 2. **Mainline Linux** (torvalds/linux master): msm8994.dtsi + msm8994-msft-lumia-octagon{.dtsi,-cityman.dts}
@@ -63,3 +65,4 @@ Ayrıntı: `BRINGUP_LOG.md`.
 - GPU, kamera (CAMSS/VFE), Venus SMMU'ları ve OCMEM şimdilik DT'de kapalı (aynı SMMU sınıfı sorun).
 - ADSP ve Venus için gereken imzalı imajlar orijinal FFU'dakilerle birebir aynı (LineageOS cityman portunun hash'leri);
   Wi-Fi için Android QCA6174 firmware'i ve PCIe1 BCR reset'i gerekiyor. Kaynaklar: `SOURCES.md`.
+- ztOS kökü SD'nin 2. bölümünden açılıyor (yazılım renderlama, llvmpipe); A57 kümesi ve CCI açılışta hızlandırılıyor; TSENS thermal zone'ları çalışıyor (`BRINGUP_LOG.md` 25-31).

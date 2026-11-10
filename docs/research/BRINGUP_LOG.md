@@ -1,4 +1,6 @@
-# Cihaz üstü bring-up günlüğü (2026-11-07 / 2026-11-08)
+# Cihaz üstü bring-up günlüğü (2026-11-07 … 2026-11-10)
+
+English version: [`en/BRINGUP_LOG.md`](en/BRINGUP_LOG.md)
 
 Bu belge, çekirdeğin ilk kez gerçek telefonda (Lumia 950 XL, cityman) çalıştırılmasından çıkan **doğrulanmış** bulguları toplar. Önceki araştırma notları (PORTING_GAPS, FINDINGS_feasibility) yalnızca çevrimdışı analizdi; burada cihazda ölçülenler var.
 
@@ -10,7 +12,7 @@ stock UEFI (eMMC) -> rEFInd -> GRUB arm64-efi (SD: \EFI\BOOT\BOOTAA64.EFI) -> Li
 
 - Windows (eMMC) değiştirilmedi; GRUB menüsünde "Windows (eMMC)" girişi `bootmgfw_real.efi`'ye zincirler.
 - GRUB'da `loadenv/save_env` modülleri yok, yani tek seferlik açılış seçimi yapılamıyor; giriş 7 sn'lik menüden elle seçilir.
-- Girişler (`rescue/grub.cfg`, güncel hâl 2026-11-10): 1) FULL DT (msm DRM panel; varsayılan), 2) SAFE DT (MDSS, GPU, kamera ve SMMU'ları kapalı, UEFI framebuffer), 3) Windows. Geçmiş değişiklikler aşağıdaki bölümlerde.
+- Girişler (`rescue/grub.cfg`, güncel hâl 2026-11-10, `set default=2`): 0) FULL DT rescue (msm DRM panel, CPU hızlandırma açık), 1) SAFE DT rescue (MDSS, GPU, kamera ve SMMU'ları kapalı, UEFI framebuffer; `ztos.noboost` ile CPU hızlandırma atlanır), 2) ztOS (`ztos.root=LABEL=ZR_ARCH`, SD'nin 2. bölümü; varsayılan), 3) Windows (eMMC), 4) önceki çekirdek (`Image.prev`, TSENS öncesi) yedeği. Geçmiş değişiklikler aşağıdaki bölümlerde.
 
 ## 2. USB gadget: kurtarma kabuğu (doğrulandı)
 
@@ -82,7 +84,7 @@ Rescue init SD'yi `rw,sync,flush` bağlar. Kayıtlar yazılırken sert reset edi
 
 Synaptics S3708AR dokunmatik (RMI4), güç/resin tuşları, hall sensörü, barometre (zpa2326), manyetometre (ak8975), SD (yüksek hız), iç eMMC görünüyor (`mmcblk1`, 40 bölüm; dokunulmadı), USB, SMBCHG, MDP5 v1.9 + DSI + panel `sergej` bağlanıyor.
 
-## 5. Sırada
+## 4.6 O günkü sıradaki iş listesi
 
 1. DSI PHY PLL / piksel saati sırası (pp done time out)
 2. GPU iommu saati / güç alanı + `a420_pm4.fw`, `a420_pfp.fw` initramfs'e
@@ -357,3 +359,92 @@ as it may still be working with phys addr" — 3.10'da `restore_sec_cfg` + BFB a
 - 0036: probe yalnız çevre birimlerini doğrulayıp init'i iş kuyruğuna atıyor; init tek izinle yapılıp pil sonra kaydediliyor.
 - Sonuç (Image 791d69373911): `FG init took 1020 ms`, **init 22.5 s → 3.05 s**, USB/SSH 5.3 s, safe-reboot döngüsü
   75 s → 45 s. `battery`: Charging, %58, 3.89 V, 92 mA, 41.5 °C, `microsoft_bvt4d_3340mah`.
+
+## 25. ztOS kök dosya sistemi SD'de açıldı (2026-11-10)
+
+- Davitekk'in ztOS kurucusu `cityman` hedefiyle derlendi (Arch Linux ARM + ztMETRO + ztOSIAL, 10 GiB ext4, etiket `ZR_ARCH`), SD kartın 2. bölümüne yazıldı.
+- GRUB'a tek seferlik giriş mekanizması denendi (`/ztos/grubenv` içindeki `next_entry`); FAT üzerinde yazılamadığı için çalışmadı (bölüm 27), sonunda `set default=2` kullanıldı.
+- `ztos.root=LABEL=ZR_ARCH` ile initramfs `switch_root` yaptı: systemd `running`, hiç başarısız servis yok, `zerone` ile SSH çalışıyor, ztOSIAL ve ztos* servisleri ayakta.
+- Ekran boştu: GPU kapalı olduğundan Mesa freedreno `msm` üzerinde GPU alamadı, wlroots renderer kuramadı, ztmetro çıktı, greetd start-limit'e takıldı. `/etc/ztos/session.env` ile `kms_swrast`/`llvmpipe` zorlandı; ztMETRO 1440x2560'ta `llvmpipe` (GLES 3.2) ile açıldı, 6 döşeme. CPU ~%300 (yazılım renderlama).
+- Kalanlar: GPU, Wi-Fi, ses (ADSP), arka ışık (`no usable backlight`), BT (QCA sürüm okuma zaman aşımı), root'un bölümün tamamına genişletilmesi.
+
+## 26. ztOS arayüzü neden yavaş: CPU/bellek ölçümleri (2026-11-10)
+
+Ekran 3-5 fps, dokunma ~2 s gecikmeli. Ölçüm (statik aarch64 benchmark, ztMETRO durdurulmuşken, `/dev/mem` ile kayıt okuma):
+
+| | A53 (cpu0-3) | A57 (cpu4-7) |
+|---|---|---|
+| etkin saat (bağımlı toplama zinciri) | ~763 MHz | ~381 MHz |
+| PLL (`f9015000` / `f9016000`) | L=0x50 (1536 MHz), mux 0x80000004 (PLL0 main, /2) | aynı L, ama PLL user_ctl post-div 0x309 (A53: 0x11f) → yarı hız |
+| L1 gecikmesi | 3.9 ns | 10.5 ns |
+| RAM gecikmesi (64 MB zincir) | ~208 ns | ~330 ns |
+
+- Kernelde CPU saat/cpufreq sürücüsü yok: çekirdekler UEFI'nin bıraktığı değerde. zrnperfd bunu bilip her şeyi cpu0-3'e (A53) sabitliyor (`cpuset`).
+- RAM gecikmesi normalin (~100 ns) 2-3 katı: bellek yolu (BIMC/CCI) da bootloader saatinde. CCI PLL L=0x1c = 537.6 MHz.
+- İlk Python benchmark'ı yanıltıcıydı: ztMETRO thread'leri `nice -15`, ölçüm `nice 0` idi.
+- Denemeler: `WLR_RENDERER=pixman` çalışmıyor (ztMETRO GLES2 renderer'ı doğrudan kullanıyor). Tüm 8 çekirdeği açmak (zrnperfd durdurulup cpuset 0-7) CPU kullanımını 4→8 çekirdeğe yaydı.
+
+Referans: MMO downstream `drivers/clk/qcom/clock-cpu-8994.c` (A53/A57/CCI alfa PLL + `a5x-lf/hf-mux`, MUX_OFFSET 0x54, hız tabloları efuse speed-bin'e bağlı, voltaj `apc0/apc1_vreg_corner`). `qcom,cpu-clock-8994` hem 8994 hem 8992 (Lumia 950) için; 950'de iki A57 eksik, DT cpu düğümleri farklı olmalı.
+Sıradaki iş: mainline `clk-alpha-pll` + özel mux/div saat sağlayıcısı + `cpufreq-dt` OPP tablosu (voltaj için kesinleşmeden yüksek frekans yok), sonra BIMC/CCI oyu.
+
+## 27. QFPROM'u /dev/mem ile okumak telefonu resetledi; grubenv tek seferlik giriş çalışmadı (2026-11-10)
+
+- CPU hız bin'ini bulmak için ztOS içinden `/dev/mem` ile `0xfc4b80b0` ve `0xfc4bc000+0x1f0..` (QFPROM/CPR sigorta alanı) okundu. Telefon anında resetlendi (SSH "closed by remote host", uptime 0). ext4 `recovery complete`, veri kaybı yok. **Ders: QFPROM kullanıcı alanından /dev/mem ile okunmaz**; hız bin'i kernel içinden `qcom,qfprom` nvmem sürücüsüyle (TZ'ye uygun yoldan) okunmalı. (Bölüm 30 sonradan düzeltilmiş alias 0xfc4bc0b0'ın güvenli, ham alias'ların sorunlu olduğunu buldu.)
+- GRUB `save_env` FAT üzerinde yazamadı: reset sonrası `next_entry=2` yerinde duruyordu ve telefon yine ztOS ile açıldı. Tek seferlik giriş mekanizması çalışmıyor; ztOS şu an her açılışta varsayılan. Rescue girdileri menüde (7 sn) elle seçilir. Düzeltme için `grub.cfg`'de `set default=2` kullanıp `grubenv` mantığı kaldırılacak.
+- ztOS'ta `zerone` için `sudo` parolası artık `toor` değil (`auth could not identify password`); Welcome uygulaması çalıştırıldıktan sonra değişmiş olabilir.
+
+## 28. A57 saati 381 → 765 MHz (düz `writel`, SCM gerekmedi) (2026-11-10)
+
+- A57 mux yazımının önceki takılmaları TZ/XPU koruması DEĞİLDİ: "güvenli" kaynak olarak seçtiğim lfmux sel 1 aslında PLL1 (PLLA) ana çıkışı ve
+  bootloader onu kapatmış; küme saatsiz kalıp PS_HOLD reseti veriyordu.
+- Referans: downstream `drivers/clk/qcom/clock-cpu-8994.c`, `cpu_clock_8994_init_a57_v2()` (qcom,cpu-clock-8992 / 8994-v2 yolu) mux 0x54'e düz
+  `writel_relaxed(0x6)` yazıyor = lfmux sel 3 = AUX / GPLL0 600 MHz. `sanity_check_clock_tree()` PLL USER_CTL bit[9:8] anlamını belgeliyor: 1 = /2, 3 = /4,
+  hız = L × 19,2 MHz / bölen.
+- Çalışan sıra (rescue FULL DT, `tools/ztcpu.c`): S11 SPMI ile 900 → 1000 mV; mux sel 3 (GPLL0); PLL f9016000 USER_CTL 0x309 → 0x109; mux sel 2 (PLL0 ana).
+- Bu registerların SCM `qcom_scm_io_readl` okuması bu TZ'de -22 döner; gerekmedi.
+- cpubench ile ölçüldü: cpu4/cpu5 ~765 MHz (önce ~381), L1 taraması 2574 MB/s (önce ~1290 tahmini), DRAM adımlı okuma 2690 MB/s.
+- Sıradaki: aynısı A53'te (768 MHz üstü 1,18 V + mem-acc ister), CCI/BIMC oyları, sonra mainline tarzı gerçek cpufreq sürücüsü.
+
+## 29. A57 960 MHz, CCI 538 MHz, açılışta uygulanıyor (`rescue/tools/ztboost.c`)
+
+- A57 PLL yeniden ayarı güvenli kaynaktan (GPLL0 aux, lfmux sel 3) çalışıyor: L=90 → 861 MHz, L=100 → 956 MHz (tek çekirdek). Yük altında SoC saati kendisi
+  düşürüyor (2 çekirdek 950, 3 çekirdek ~899, 4 çekirdek ilk denemede ~766, açılış ayarından sonra ~862 MHz). Bu adımlarda S11 rayı downstream CPR tavanında
+  tutuldu (1000 mV, msm8992-regulator.dtsi apc1 sigorta köşesi 3).
+- CCI: bootloader 268,8 MHz'de çalıştırıyor (CCI PLL L=28 = 537,6 MHz, hfmux 2 = PLL/2). hfmux 3 (PLL doğrudan) bunu iki katına çıkarıyor; güvenli kaynak
+  AUX, düz `writel` çalışıyor (S8 zaten 1000 mV). Etki: L2-ıskalama/CCI gecikmesi 2 MB'de 57,7 → 42,4 ns.
+- DRAM gecikmesi (~215 ns) CCI adımı ve interconnect bant genişliği oyu (mas_ampss_m0 → slv_ebi_ch0, 6,4 GB/s; MDP zaten aynı oyu veriyor) ile
+  değişmiyor. BIMC/DDR saati çalışan bir RPM yolu ister: açık iş.
+- `rescue/init`, açılışta `/lib/modules/ztboost.ko` yüklüyor (SAFE DT girdisindeki `ztos.noboost` ile atlanır). Doğrulandı: ztboost 2,7 s'de çalışıyor,
+  cpu5 956 MHz, 4 × A57 862 MHz.
+- A53 763 MHz'de kalıyor (787 MHz üstü S8'de 1180 mV köşesi ister; S8 CCI ile ortak).
+
+## 30. CPU hız bin'i ve Microsoft'un frekans/voltaj tabloları (Windows PEP, stock DSDT)
+
+- Hız bin'i: stock DSDT (`ffu_extract/plat/ACPI/dsdt.dsl`, `OperationRegion (FUSE, SystemMemory, 0xFC4B8000, 0x5000)` ve
+  `Field QWordAcc { Offset (0x40B0) PTE, 64 }` kullanan metot) PTE'yi 0xFC4B8000 + 0x40B0 = **0xFC4BC0B0** adresinden okuyup `PTE & 7` kullanıyor:
+  0 = "2.0GHz", 1 = "1.8GHz". Telefonun önceki reset'leri 0xfc4b80b0 (downstream Android sürücüsünün kullandığı ham alias) ve 0xfc4bc000 okumasından
+  kaynaklandı, doğru adresten değil. 0xFC4BC0B0'ın tek `readq()` ile okunması güvenli (`rescue/tools/ztfuse.c`): PTE 10a1c71c8e4e78b0 → hız bin 0 = 2,0 GHz parça.
+- Windows 10 Mobile `QCpep8994.sys` (`ffu_extract/mainos/Windows/System32/Drivers`) tam tabloları taşıyor; girdiler
+  {indeks, Hz, köşe kimliği, tavan µV, nominal µV, taban µV, -1}, dosya ofsetleri 0xba138 (A53), 0xba278 ve 0xba748 (A57, iki bin), 0xba418/0xba648/0xba978 (CCI), 0xba580.
+  - A53: 384 … 1555,2 MHz (600/672/768 MHz 1000 mV; 864/960 MHz nominal 1115 mV; 1248..1555 MHz nominal 1180 mV, tavan 1225 mV).
+  - A57 (14 basamak, 2,0 GHz bin): 384 480 633,6 | 768 864 960 (1000 mV) | 1248 1344 1440 1536 1632 (nominal 1160 mV, tavan 1225) | 1728 1824 1958,4 MHz (1225 mV).
+    Diğer tablo 1766,4 MHz'de bitiyor (1,8 GHz bin).
+  - CCI: üç varyantta 921,6 / 940,8 / 787,2 MHz'e kadar; 600 MHz ve üstü 1225 mV ister.
+- Bu SoC'de en yüksek köşenin tavanı bu yüzden 1225 mV (Lumia 950 / MSM8992 regülatör dtsi'sindeki 1180 mV değil).
+
+## 31. MSM8994 için TSENS (SoC sıcaklık sensörleri)
+
+- Yalnızca PMIC kalıbı ve pil görünüyordu; 16 TSENS sensörü (cpu0-7, gpu, pop bellek) dışarı verilmiyordu.
+- MSM8974 ile aynı v0.1 TSENS IP'si, 16 sensör. Çekirdek yaması 0037: `tsens-v0_1.c` içinde MSM8994 verisi, kalibrasyon QFPROM düzeltilmiş alias
+  0xfc4bc0d0'dan (üç adet 32 bit sözcük; hız bin'i ile aynı alias; doğrulandı: cal_sel 3 = iki noktalı, base0 526, base1 833, tüm ofsetler 0),
+  DT düğümü tsens@fc4a9000 (TM) / fc4a8000 (SROT), IRQ SPI 184, salt okunur thermal zone'lar. Sensör numaralaması downstream
+  qcom,sensor-information'dan: 7-10 = cpu0-3 (A53), 13/14/15/6 = cpu4-7 (A57), 12 = gpu, 2 = pop bellek.
+- Çekirdek config: `CONFIG_NVMEM_QCOM_QFPROM=y` (bağımlılık) ve `CONFIG_QCOM_TSENS=y` (ilki kapalıyken `olddefconfig` ikincisini sessizce siliyordu). Çekirdek
+  artık temiz ağaçtan derleniyor (7.3.0-rc2-sumire-g971297720829); eski "-dirty" dizgisi modül yüklemeyi (vermagic) bozardı.
+- SD: yeni Image, iki DTB, rescue.cpio.gz (ztboost.ko yeni sürüme göre yeniden derlendi), grub.cfg'de 5. girdi "PREVIOUS kernel" (Image.prev + cityman.prev.dtb).
+- Downstream kalibrasyonun yedekleme (redundancy) bölgesi (+0x464 …) henüz ele alınmadı.
+- Sonuç (son çekirdek 7.3.0-rc2-sumire-g70b1eac4d0ff): sensörler Linux başladığında zaten çalışıyor (güvenli firmware) ama SROT TSENS_EN biti 0 okunuyor;
+  mainline `init_common` bu bit yüzünden reddediyordu ("device not enabled"). Yeni `skip_en_check` özellik bayrağı probe'u düzeltti.
+  Sensör 0..4 kod 0 veriyor (bağlı değil, zone yok); 5 ve 11 canlı ama sahibi bilinmiyor. Elle okuma (`rescue/tools/ztts.c`) ve sürücü uyuşuyor.
+  İlk okumalar (yazılım renderlama ile tüm çekirdekler yüklüyken açılıştan hemen sonra): cpu0-3 (A53) 62-67 °C, cpu4-7 (A57) 65-77 °C, gpu 75 °C,
+  PMIC kalıbı 63 °C, pil 50 °C. A57 kümesi boşta denecek yükte bile ~75 °C; saat/voltaj artışı için pay kontrolü şart.
