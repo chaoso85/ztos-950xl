@@ -67,7 +67,7 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 - [ ] Geçici çözümleri kök nedene indir: 32 MiB GEM başlangıcı, autosuspend yok / GX hep açık, SP/TP elle güç açma, TZ SEA veren register dump'ı, OCMEM sırası (bkz. `research/FORK_ANALYSIS.md`).
 - [ ] `a420_pm4.fw` / `a420_pfp.fw` yeniden dağıtım lisansını `linux-firmware` WHENCE'inde doğrula.
 - [x] ztMETRO yazılım render (llvmpipe, `kms_swrast`) ile çalışıyor ama 3–9 fps; GPU şart.
-- [ ] **Sıradaki iş:** ztMETRO'yu GPU'ya al (`/etc/ztos/session.env` içindeki llvmpipe zorlamasını kaldır, root gerekir), `kmscube` / `glmark2-es2`, devfreq, soğutma.
+- [x] ztMETRO GPU'da (Mesa freedreno), arayüz 60 fps; kullanıcı doğruladı. Sıradaki: `glmark2-es2`, devfreq, soğutma.
 - [ ] MDP5 dual-LM / 20nm DSI PHY yamaları fork'ta "needs review".
 
 ## 4. Kamera

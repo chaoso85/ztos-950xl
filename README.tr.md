@@ -14,7 +14,7 @@
 
 </div>
 
-> **Durum: erken bring-up.** Çekirdek telefonda SD karttan açılıyor ve **ztOS kök dosya sistemi (ztMETRO kabuğu) kartın 2. bölümünden çalışıyor**; GPU hâlâ kapalı olduğu için yazılımla (llvmpipe) çiziliyor. Panel `drm/msm` ile çalışıyor (1440x2560), USB üzerinden SSH ile kurtarma kabuğu ve SD kart çalışıyor, Cortex-A57 kümesi ve CCI açılışta hızlandırılıyor (960 / 538 MHz; bootloader varsayılanı 384 / 269 MHz) ve SoC sıcaklık sensörleri thermal zone olarak görünüyor. GPU, kamera, ses ve Wi-Fi henüz çalışmıyor; sıradaki iş GPU. Ekran reset'inin kök nedeni: [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md) (İngilizce). Tüm kronoloji: [`docs/research/BRINGUP_LOG.md`](docs/research/BRINGUP_LOG.md) ([English](docs/research/en/BRINGUP_LOG.md)). Açık işler: [`docs/OPEN_ITEMS.md`](docs/OPEN_ITEMS.md). Tam eMMC yedeği almadan bu depodaki hiçbir şeyi tek cihazınıza yüklemeyin.
+> **Durum: erken bring-up.** Çekirdek telefonda SD karttan açılıyor ve **ztOS kök dosya sistemi (ztMETRO kabuğu) kartın 2. bölümünden çalışıyor**; **Adreno 430 GPU** ile çiziliyor (Mesa freedreno, arayüz 60 fps). Panel `drm/msm` ile çalışıyor (1440x2560), USB üzerinden SSH ile kurtarma kabuğu ve SD kart çalışıyor, Cortex-A57 kümesi ve CCI açılışta hızlandırılıyor (960 / 538 MHz; bootloader varsayılanı 384 / 269 MHz) ve SoC sıcaklık sensörleri thermal zone olarak görünüyor. Kamera, ses ve Wi-Fi henüz çalışmıyor. Ekran reset'inin kök nedeni: [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md) (İngilizce). Tüm kronoloji: [`docs/research/BRINGUP_LOG.md`](docs/research/BRINGUP_LOG.md) ([English](docs/research/en/BRINGUP_LOG.md)). Açık işler: [`docs/OPEN_ITEMS.md`](docs/OPEN_ITEMS.md). Tam eMMC yedeği almadan bu depodaki hiçbir şeyi tek cihazınıza yüklemeyin.
 
 ## Hedef
 
@@ -56,8 +56,8 @@ Açıklama: ✅ telefonda çalışıyor · 🟡 kısmen çalışıyor / iş var 
 | Ekran (çift DSI, komut modu) | ✅ | MDP5 v1.9 + çift DSI + Sergej panel, 1440x2560, konsol panelde. 4/4 temiz açılış. MDP SMMU'nun TZ kurulumu, DRM UEFI framebuffer'ını devralana kadar erteleniyor (yama 0034). DRM açılırken bir kez `pp done time out` kalıyor. |
 | CPU saatleri | 🟡 | Henüz cpufreq sürücüsü yok. Açılışta `ztboost.ko` (kurtarma initramfs'i) PM8994 S11 rayı 1,0 V iken A57 kümesini 960 MHz'e (384'ten) ve CCI'yi 538 MHz'e (269'dan) çıkarıyor; A53 763 MHz'de kalıyor. Çok çekirdekli yükte SoC A57 saatini kendisi düşürüyor (4 çekirdek ~862 MHz). CPU 2,0 GHz hız bin'i (sigorta `0xFC4BC0B0`); Windows'un kendi frekans/voltaj tabloları (A57 1958 MHz'e kadar, tavan 1225 mV) çıkarıldı. DDR/BIMC saati hâlâ yönetilmiyor (DRAM gecikmesi ~215 ns). |
 | Sıcaklık sensörleri | ✅ | TSENS v0.1, 16 sensör (yama 0037, kalibrasyon QFPROM'dan): cpu0-7 ve gpu için thermal zone. Yazılım renderlama ile boşta denecek sıcaklıklar: A53 62-67 °C, A57 65-77 °C. Yedek (redundancy) sigorta bölgesi ele alınmadı. |
-| ztOS kullanıcı alanı | 🟡 | Kök SD'nin 2. bölümünden açılıyor (systemd ayakta, `zerone` ile SSH, ztOSIAL servisleri). ztMETRO Mesa `llvmpipe` ile çalışıyor (`/etc/ztos/session.env` ile zorlanmış): bootloader saatlerinde 3-5 fps, A57/CCI hızlandırmasından sonra 7-9 fps. GPU gerekli. |
-| GPU (Adreno 430) | 🔴 | DT'de kapalı (SMMU'su ve OCMEM ile birlikte): SMMU'su GX güçsüzken bağlanınca SoC reset/donma. Firmware `a420_pm4/pfp.fw` linux-firmware'den. |
+| ztOS kullanıcı alanı | 🟡 | Kök SD'nin 2. bölümünden açılıyor (systemd ayakta, `zerone` ile SSH, ztOSIAL servisleri). ztMETRO Mesa `freedreno` ile GPU'da çiziliyor (`/etc/ztos/session.env`), 60 fps akıcı. GPU öncesi: llvmpipe, 3-9 fps. |
+| GPU (Adreno 430) | ✅ | `drm/msm` + Mesa `freedreno` (`FD430`, OpenGL ES 3.0). Yama 0038: GPU SMMU'nun global alanı (GR0) TrustZone'a ait; ilk GX/CX güç açılışı ve `restore_sec_cfg(18)` öncesi erişim yok. Kök neden ve yol: [`docs/research/GPU_DRIVER_ANALYSIS.md`](docs/research/GPU_DRIVER_ANALYSIS.md). Firmware `a420_pm4/pfp.fw` linux-firmware'den. Açık: GPU cooling device, devfreq, `vdd`/`vddcx` regülatörleri. |
 | Kamera | 🔴 | CAMSS ve VFE/Venus SMMU'ları aynı SMMU nedeniyle DT'de kapalı; CCI probe oluyor. CCS sürücüsü sensörlerle daha önce çalışmamıştı. |
 | USB gadget (kurtarma/SSH) | ✅ | DWC3 + HS PHY (TCSR yönlendirme + LK QSCRATCH değerleri). Windows ACM + RNDIS görüyor, SSH çalışıyor. |
 | Şarj / fuel gauge | 🟡 | SMBCHG ve PMI8994 FG probe oluyor (pil ID okunuyor); init arka planda (tek SRAM izni, ~1 sn); kapasite, gerilim, akım ve sıcaklık doğru okunuyor. |
@@ -79,7 +79,7 @@ Açıklama: ✅ telefonda çalışıyor · 🟡 kısmen çalışıyor / iş var 
 - [x] A57 / CCI saatleri açılışta yükseltiliyor; CPU hız bin'i ve Windows frekans/voltaj tabloları bulundu
 - [x] TSENS sıcaklık sensörleri (yama 0037)
 - [ ] Kalan ekran uyarıları
-- [ ] GPU: SMMU'dan önce güç sırası, ardından `kmscube` / `glmark2-es2`
+- [x] GPU: yama 0038 ile açıldı (sıradaki: `glmark2-es2`, devfreq, soğutma)
 - [ ] Sıcaklık izlemeli kademeli A57 artışı, 787 MHz üstü A53, DDR/BIMC saati, gerçek cpufreq sürücüsü
 - [ ] `ztconflo` `uefi-esp` flash yöntemi + ztOSIAL manifest
 - [ ] Wi-Fi, ses, şarj, sensörler

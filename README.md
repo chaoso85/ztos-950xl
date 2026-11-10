@@ -14,7 +14,7 @@
 
 </div>
 
-> **Status: early bring-up.** The kernel boots on the phone from an SD card and the **ztOS root filesystem (ztMETRO shell) runs from the card's second partition**, rendered in software (llvmpipe) because the GPU is still disabled. The panel works with `drm/msm` (1440x2560), the USB rescue shell (SSH) and the SD card work, the Cortex-A57 cluster and the CCI are raised at boot (960 / 538 MHz, bootloader default 384 / 269 MHz) and the SoC temperature sensors are exposed as thermal zones. GPU, camera, audio and Wi-Fi do not work yet; the GPU is next. Display reset root cause: [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md). Full chronology: [`docs/research/en/BRINGUP_LOG.md`](docs/research/en/BRINGUP_LOG.md) (also in [Turkish](docs/research/BRINGUP_LOG.md)). Open items: [`docs/OPEN_ITEMS.md`](docs/OPEN_ITEMS.md). Do not flash anything from this repo to your only device without a full eMMC backup.
+> **Status: early bring-up.** The kernel boots on the phone from an SD card and the **ztOS root filesystem (ztMETRO shell) runs from the card's second partition**, rendered by the **Adreno 430 GPU** (Mesa freedreno, 60 fps UI). The panel works with `drm/msm` (1440x2560), the USB rescue shell (SSH) and the SD card work, the Cortex-A57 cluster and the CCI are raised at boot (960 / 538 MHz, bootloader default 384 / 269 MHz) and the SoC temperature sensors are exposed as thermal zones. Camera, audio and Wi-Fi do not work yet. Display reset root cause: [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md). Full chronology: [`docs/research/en/BRINGUP_LOG.md`](docs/research/en/BRINGUP_LOG.md) (also in [Turkish](docs/research/BRINGUP_LOG.md)). Open items: [`docs/OPEN_ITEMS.md`](docs/OPEN_ITEMS.md). Do not flash anything from this repo to your only device without a full eMMC backup.
 
 ## Goal
 
@@ -56,8 +56,8 @@ Legend: ✅ works on the phone · 🟡 partly works / needs work · 🔴 not wor
 | Display (dual DSI, command mode) | ✅ | MDP5 v1.9 + dual DSI + Sergej panel, 1440x2560, fbcon on the panel. 4/4 clean boots. The MDP SMMU's TZ setup is deferred until DRM takes over from the UEFI framebuffer (patch 0034). One `pp done time out` at DRM init remains. |
 | CPU clocks | 🟡 | No cpufreq driver yet. At boot `ztboost.ko` (rescue initramfs) raises the A57 cluster to 960 MHz (from 384) and the CCI to 538 MHz (from 269) with the PM8994 S11 rail at 1.0 V; A53 stays at 763 MHz. The SoC lowers the A57 clock itself under multi-core load (4 cores ~862 MHz). The CPU is the 2.0 GHz speed bin (fuse read at `0xFC4BC0B0`); Windows' own frequency/voltage tables (A57 up to 1958 MHz, ceiling 1225 mV) are extracted. DDR/BIMC clock is still unmanaged (DRAM latency ~215 ns). |
 | Thermal sensors | ✅ | TSENS v0.1, 16 sensors (patch 0037, calibration from QFPROM): thermal zones for cpu0-7 and gpu. Idle-ish temperatures with software rendering: A53 62-67 °C, A57 65-77 °C. Redundancy fuse region not handled. |
-| ztOS userland | 🟡 | Root boots from SD partition 2 (systemd up, SSH as `zerone`, ztOSIAL services). ztMETRO runs on Mesa `llvmpipe` (forced in `/etc/ztos/session.env`): 3-5 fps at bootloader clocks, 7-9 fps after the A57/CCI boost. Needs the GPU. |
-| GPU (Adreno 430) | 🔴 | Disabled in DT (with its SMMU and OCMEM): attaching its SMMU with GX unpowered reset or hung the SoC. Firmware `a420_pm4/pfp.fw` comes from linux-firmware. |
+| ztOS userland | 🟡 | Root boots from SD partition 2 (systemd up, SSH as `zerone`, ztOSIAL services). ztMETRO renders on the GPU through Mesa `freedreno` (`/etc/ztos/session.env`), smooth at 60 fps. Before the GPU: llvmpipe, 3-9 fps. |
+| GPU (Adreno 430) | ✅ | `drm/msm` + Mesa `freedreno` (`FD430`, OpenGL ES 3.0). Patch 0038: the GPU SMMU's global space (GR0) belongs to TrustZone, so no access before the first GX/CX power-up and `restore_sec_cfg(18)`. Root cause and path: [`docs/research/en/GPU_DRIVER_ANALYSIS.md`](docs/research/en/GPU_DRIVER_ANALYSIS.md). Firmware `a420_pm4/pfp.fw` from linux-firmware. Open: GPU cooling device, devfreq, `vdd`/`vddcx` regulators. |
 | Camera | 🔴 | CAMSS and the VFE/Venus SMMUs are disabled in DT for the same SMMU reason; CCI probes. The CCS driver did not work with the sensors before. |
 | USB gadget (rescue/SSH) | ✅ | DWC3 + HS PHY (TCSR routing + LK QSCRATCH values). Windows sees ACM + RNDIS, SSH works. |
 | Charger / fuel gauge | 🟡 | SMBCHG and PMI8994 FG probe (battery ID is read); init runs in the background (one SRAM grant, ~1 s); capacity, voltage, current and temperature read correctly. |
@@ -79,7 +79,7 @@ Legend: ✅ works on the phone · 🟡 partly works / needs work · 🔴 not wor
 - [x] A57 / CCI clocks raised at boot; CPU speed bin and Windows frequency/voltage tables found
 - [x] TSENS temperature sensors (patch 0037)
 - [ ] Remaining display warnings
-- [ ] GPU: power sequencing before its SMMU, then `kmscube` / `glmark2-es2`
+- [x] GPU: comes up with patch 0038 (next: `glmark2-es2`, devfreq, cooling)
 - [ ] Gradual A57 raise with temperature monitoring, A53 above 787 MHz, DDR/BIMC clock, a real cpufreq driver
 - [ ] `ztconflo` `uefi-esp` flash method + ztOSIAL manifest
 - [ ] Wi-Fi, audio, charging, sensors
