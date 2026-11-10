@@ -319,10 +319,10 @@ Image 2d88a55f7f12, grub.cfg 3d93e7858463.
   inside qcom_scm_restore_sec_cfg(1, 0) - called from the ctx probe's parent resume while the UEFI
   framebuffer is still scanned out. Downstream mdss_mdp.c delays the iommu attach (which is where 3.10
   does restore_sec_cfg/BFB) until the splash handoff for exactly this reason.
-- 0033: the 8994 MDP SMMU is "hw_deferred": resume only enables clocks, the ctx probe does not resume
+- 0033 = step markers (debug). 0034: the 8994 MDP SMMU is "hw_deferred": resume only enables clocks, the ctx probe does not resume
   it, and the first translating-domain attach (msm DRM, after it stopped the UEFI scanout) does
   restore_sec_cfg + BFB. Test: MDP SMMU enabled at runtime -> no reset; mdss + msm DRM loaded at runtime ->
   deferred restore_sec_cfg ret 0, [drm] Initialized msm, fb0 msmdrmfb, alive.
-- 0034 markers to dev_dbg without pauses, DRM_MSM/panel back to built-in (Image 8d6fd74eaffd); FULL
+- 0035 markers to dev_dbg without pauses, DRM_MSM/panel back to built-in (Image 8d6fd74eaffd); FULL
   grub entry back to the normal console without initcall_debug (grub.cfg a09926184cc5).
 - Lesson: the fbcon output lags real time by seconds; never locate a reset from the last visible line.
