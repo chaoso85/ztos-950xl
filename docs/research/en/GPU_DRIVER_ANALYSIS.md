@@ -49,3 +49,11 @@ Goal: compare the power/clock sequences of three sources to fix the GPU SMMU att
 | Read GPU `0xfdb00000` reg0..3 (`gpu=1`), rail vote included | **CPU hangs** |
 
 Conclusion: every power, rail and clock precondition documented for Windows/downstream is met, yet the first access to both the GPU and the GPU SMMU register spaces still hangs (a slave that never answers). Candidates not yet eliminated: (a) the Windows `APPSS→GFX3D_CFG` configuration-path bus vote (mainline interconnect has no equivalent: `slv_cnoc_mnoc_mmss_cfg`/`slv_mmss_clk_xpu_cfg` exist but no GFX3D_CFG node), (b) XPU/MPU protection (`slv_mnoc_mpu_cfg`; unverified, and an earlier reset was wrongly blamed on XPU), (c) a step `qcdxkm8994.sys` takes before its first register read (TZ/SMMU init or a GPU block reset). Next step is not another live test but offline analysis of the code in `qcdxkm8994.sys` (the WOA ARM64 build) up to the first RBBM access.
+
+### 6a. Further experiments (same day)
+
+- PEP re-read (`gpu_pep.txt`): power-up = `/clk/oxili`=0x4B00 (19.2 MHz) → GX → CX → `BUSARB APPSS_PROC→GFX3D_CFG 0x11E1A300 (=300000000)` → the three clocks. A separate `PSTATE 1`: reset assert (0x0A), 1 µs, deassert (0x0B) on the three clocks.
+- The `GFX3D_CFG` vote was sent to the RPM (`bmas` master 0 / `bslv` slave 11, bw 300000000): the RPM answered **"resource does not exist" (-ENXIO)**; this phone's RPM has no bus-arbiter resources (which is why `ignore_enxio` is set everywhere in the driver).
+- The RPM `mmssnoc_ahb_clk` (MMSS NoC AHB root) had never been voted; it was (user count 1). **Result: the GPU reg0 read still hung the CPU.**
+- In `qcdxkm8994.sys`, `GpuResetValue`/`BusResetValue` are timeout settings, not a hardware reset.
+- Remaining candidates: the clock reset pulse (PSTATE 1) and starting the root clock at 19.2 MHz as Windows does, XPU/MPU, another step inside `qcdxkm8994.sys`.

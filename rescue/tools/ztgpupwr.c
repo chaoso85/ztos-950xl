@@ -13,8 +13,15 @@
 #include <linux/pm_runtime.h>
 #include <linux/clk-provider.h>
 #include <dt-bindings/clock/qcom,mmcc-msm8994.h>
+#include <dt-bindings/clock/qcom,rpmcc.h>
 #include <soc/qcom/msm8994-oxili.h>
-static int smmu, gpu, rail = 1;
+static int smmu, gpu, rail = 1, cfgbus = 1, noc = 1;
+module_param(noc, int, 0444);
+module_param(cfgbus, int, 0444);
+/* RPM bus-arbiter request (exported by drivers/interconnect/qcom/smd-rpm.c) */
+int qcom_icc_rpm_smd_send(int ctx, int rsc_type, int id, u32 val);
+#define ZT_BUS_MASTER_REQ 0x73616d62
+#define ZT_BUS_SLAVE_REQ  0x766c7362
 module_param(rail, int, 0444);
 static struct platform_device *rpdev;
 module_param(smmu, int, 0444);
@@ -57,6 +64,23 @@ static int __init z_init(void)
 	ret = msm8994_oxili_pre_gpu_power();
 	pr_info("ztgpupwr: pre_gpu_power ret=%d\n", ret);
 	dump("after power", m);
+	if (cfgbus) {
+		/* Windows PEP: BUSARB ICBID_MASTER_APPSS_PROC (0) -> ICBID_SLAVE_GFX3D_CFG (11), 0x11E1A300 = 300000000,
+		 * after the footswitches and before the clocks */
+		pr_info("ztgpupwr: cfgbus master0=%d slave11=%d\n",
+			qcom_icc_rpm_smd_send(0, ZT_BUS_MASTER_REQ, 0, 300000000),
+			qcom_icc_rpm_smd_send(0, ZT_BUS_SLAVE_REQ, 11, 300000000));
+	}
+	if (noc) {
+		/* MMSS NoC AHB (RPM clock) was never voted by Linux; the Windows GFX3D_CFG bus vote is its hardware counterpart */
+		struct device_node *rn = of_find_compatible_node(NULL, NULL, "qcom,rpmcc-msm8994");
+		struct clk *nc = rn ? getclk(rn, RPM_SMD_MMSSNOC_AHB_CLK) : ERR_PTR(-ENODEV);
+		if (!IS_ERR(nc)) {
+			pr_info("ztgpupwr: mmssnoc_ahb set_rate=%d\n", clk_set_rate(nc, 80000000));
+			pr_info("ztgpupwr: mmssnoc_ahb enable=%d rate=%lu\n", clk_prepare_enable(nc), clk_get_rate(nc));
+		} else
+			pr_info("ztgpupwr: mmssnoc_ahb clk err %ld\n", PTR_ERR(nc));
+	}
 	cx_ahb = getclk(np, OXILICX_AHB_CLK);
 	gfx3d = getclk(np, OXILI_GFX3D_CLK);
 	rbbm = getclk(np, OXILI_RBBMTIMER_CLK);

@@ -49,3 +49,11 @@ Amaç: GPU'yu (Adreno 430) açarken SoC'yi resetleyen/kilitleyen SMMU ataması s
 | GPU `0xfdb00000` reg0..3 oku (`gpu=1`), ray oyu dahil | **CPU donar** |
 
 Sonuç: Windows/downstream'de belgelenen güç, ray ve saat önkoşullarının hepsi sağlanıyor, ama hem GPU hem GPU SMMU kayıt alanına ilk erişim yine donuyor (cevap vermeyen bir slave). Elenmeyen adaylar: (a) Windows'taki `APPSS→GFX3D_CFG` yapılandırma yolu oyu (mainline interconnect'te karşılığı yok: `slv_cnoc_mnoc_mmss_cfg`/`slv_mmss_clk_xpu_cfg` var ama GFX3D_CFG düğümü yok), (b) XPU/MPU koruması (`slv_mnoc_mpu_cfg`; doğrulanmadı, daha önce bir reset yanlışlıkla XPU'ya yorulmuştu), (c) `qcdxkm8994.sys`'in ilk kayıt okumasından önce yaptığı bir adım (TZ/SMMU init ya da GPU bloğu reset'i). Sonraki adım canlı deneme değil, `qcdxkm8994.sys` (WOA ARM64 sürümü) içinde ilk RBBM erişimine kadarki kodun çevrimdışı çözümlenmesi.
+
+### 6a. Ek deneyler (aynı gün)
+
+- PEP yeniden okundu (`gpu_pep.txt`): güç açılışı = `/clk/oxili`=0x4B00 (19,2 MHz) → GX → CX → `BUSARB APPSS_PROC→GFX3D_CFG 0x11E1A300 (=300000000)` → üç saat. Ayrı bir `PSTATE 1`: üç saat için reset assert (0x0A), 1 µs, deassert (0x0B).
+- `GFX3D_CFG` oyu RPM'e (`bmas` master 0 / `bslv` slave 11, bw 300000000) gönderildi: RPM **"resource does not exist" (-ENXIO)** döndü; bu telefonun RPM'inde veri yolu kaynakları yok (sürücüde her yerde `ignore_enxio` olması bunu açıklıyor).
+- RPM `mmssnoc_ahb_clk` (MMSS NoC AHB kökü) hiç oylanmamıştı; oylandı (kullanıcı 1). **Sonuç: GPU reg0 okuması yine CPU'yu dondurdu.**
+- `qcdxkm8994.sys`'te `GpuResetValue`/`BusResetValue` donanım reset'i değil, zamanlama (timeout) ayarları.
+- Kalan adaylar: saat reset darbesi (PSTATE 1) ve kök saatin Windows'taki gibi 19,2 MHz ile başlaması, XPU/MPU, `qcdxkm8994.sys` içindeki başka bir ön adım.
