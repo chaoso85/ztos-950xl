@@ -57,3 +57,12 @@ Conclusion: every power, rail and clock precondition documented for Windows/down
 - The RPM `mmssnoc_ahb_clk` (MMSS NoC AHB root) had never been voted; it was (user count 1). **Result: the GPU reg0 read still hung the CPU.**
 - In `qcdxkm8994.sys`, `GpuResetValue`/`BusResetValue` are timeout settings, not a hardware reset.
 - Remaining candidates: the clock reset pulse (PSTATE 1) and starting the root clock at 19.2 MHz as Windows does, XPU/MPU, another step inside `qcdxkm8994.sys`.
+
+## 7. Review of the working Android sources (giannoccarol cityman, Android4Lumia950 lk2nd, mainline, marlin)
+
+- **Android (cityman, kgsl) uses the same sequence as ours:** `pwrlevel_change` → GX (`gdsc_oxili_gx`, `parent-supply = pmi8994_s2_corner`, an RPM-smd-regulator, `qcom,set=3`) → CX → clocks (`core`, `iface`, `rbbmtimer`) → AXI vote → A430 SP/TP (`RBBM_POWER_CNTL_IP = 0x778000`). kgsl itself makes **no SCM/TZ call** and no configuration-path (GFX3D_CFG) vote (only the data path 26→512). So the Windows-specific `APPSS→GFX3D_CFG` vote is not needed on Android.
+- **SMMU (`msm_iommu-v1`) first-attach order:** regulators (CX + alt-GX) → `apply_bus_vote` (26→512) → clocks → SCM `restore_sec_cfg(18)` → BFB → context. Register access comes **after** the TZ call.
+- **SMPB2 (pmi8994 S2/S3, VDD_GFX) is RPM-owned on Android** (`rpm-regulator-smpb2`, corner vote). Our DT also models it as an SPMI regulator (`vdd_gfx`, 980 mV). Two owners may collide; the rpmpd corner numbering (downstream `init-voltage-corner = <2>` commented SVS SOC, enum NONE=1…) was not matched or verified.
+- **lk2nd (msm8994):** no GPU-specific init; only `scm_xpu_err_fatal_init()` (makes XPU violations fatal) and the MMSS AXI clocks. The Windows UEFI → GRUB path has the same TZ/XPU state, but how an XPU violation presents on this SoC (hang vs reset) is not verified.
+- **Mainline v7.3.1 `a4xx_gpu.c`:** 22894 bytes, identical to `master`; no A430 power code. Nothing new beyond the fork's e8d7ff26a8f. The freedreno repo is userspace tooling only (`a4xx.xml.h`), no kernel power sequence. The marlin `adreno.h` only has feature flags (`ADRENO_SPTP_PC` etc.).
+- **Conclusion:** if the GPU register read still hangs although we follow Android's sequence, the difference is in platform state or in the SMMU/SCM prerequisite. The next sensible experiment is to follow Android's real path instead of poking from a module: `restore_sec_cfg(18)` with GX+CX+clocks up (like 0034 for MDP, but for the GPU SMMU), and removing the SPMI/RPM double ownership.

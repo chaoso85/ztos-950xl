@@ -57,3 +57,12 @@ Sonuç: Windows/downstream'de belgelenen güç, ray ve saat önkoşullarının h
 - RPM `mmssnoc_ahb_clk` (MMSS NoC AHB kökü) hiç oylanmamıştı; oylandı (kullanıcı 1). **Sonuç: GPU reg0 okuması yine CPU'yu dondurdu.**
 - `qcdxkm8994.sys`'te `GpuResetValue`/`BusResetValue` donanım reset'i değil, zamanlama (timeout) ayarları.
 - Kalan adaylar: saat reset darbesi (PSTATE 1) ve kök saatin Windows'taki gibi 19,2 MHz ile başlaması, XPU/MPU, `qcdxkm8994.sys` içindeki başka bir ön adım.
+
+## 7. Çalışan Android kaynaklarının incelenmesi (giannoccarol cityman, Android4Lumia950 lk2nd, mainline, marlin)
+
+- **Android (cityman, kgsl) sırası bizimkiyle aynı:** `pwrlevel_change` → GX (`gdsc_oxili_gx`, `parent-supply = pmi8994_s2_corner`, RPM-smd-regulator, `qcom,set=3`) → CX → saatler (`core`, `iface`, `rbbmtimer`) → AXI oyu → A430 SP/TP (`RBBM_POWER_CNTL_IP = 0x778000`). kgsl'in kendisinde **SCM/TZ çağrısı yok**; yapılandırma yolu (GFX3D_CFG) oyu da yok (yalnızca veri yolu 26→512). Yani Windows'a özgü `APPSS→GFX3D_CFG` oyu Android'de gerekmiyor.
+- **SMMU (`msm_iommu-v1`) ilk bağlama sırası:** regülatörler (CX + alt-GX) → `apply_bus_vote` (26→512) → saatler → SCM `restore_sec_cfg(18)` → BFB → bağlam. Kayıt erişimi TZ çağrısından **sonra**.
+- **SMPB2 (pmi8994 S2/S3, VDD_GFX) Android'de RPM'e ait** (`rpm-regulator-smpb2`, köşe oyu). Bizim DT bunu aynı zamanda SPMI regülatörü (`vdd_gfx`, 980 mV) olarak da modelliyor. İki sahip çakışıyor olabilir; rpmpd köşe numaralandırması (downstream `init-voltage-corner = <2>` yorumda SVS SOC, enum NONE=1…) eşleşmesi doğrulanmadı.
+- **lk2nd (msm8994):** GPU'ya özel başlatma yok; yalnızca `scm_xpu_err_fatal_init()` (XPU ihlallerini ölümcül yapar) ve MMSS AXI saatleri. Windows UEFI → GRUB yolunda aynı TZ/XPU durumu, ama XPU ihlalinin nasıl göründüğü (donma/reset) bu SoC'de doğrulanmış değil.
+- **Mainline v7.3.1 `a4xx_gpu.c`:** 22894 bayt, `master` ile aynı; A430 güç kodu yok. Fork'un e8d7ff26a8f yaması dışında yeni bilgi yok. freedreno deposu yalnızca kullanıcı alanı araçları (`a4xx.xml.h`), çekirdek güç sırası içermiyor. marlin `adreno.h` yalnızca özellik bayrakları (`ADRENO_SPTP_PC` vb.).
+- **Sonuç:** Android ile aynı sırayı uyguladığımız halde GPU kaydı donuyorsa fark platform durumunda ya da SMMU/SCM önkoşulunda. Sıradaki mantıklı deney, modül dürtmek yerine Android'in yaptığı gibi gerçek yolu izlemek: `restore_sec_cfg(18)` GX+CX+saatler açıkken (MDP'deki 0034 gibi, ama GPU SMMU için) ve SPMI/RPM çift sahipliğini ortadan kaldırmak.
