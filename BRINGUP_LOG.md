@@ -83,3 +83,8 @@ Sıradaki iş: mainline `clk-alpha-pll` + özel mux/div saat sağlayıcısı + `
   (7.3.0-rc2-sumire-g971297720829); the old "-dirty" string would have broken module loading (vermagic).
 - SD: new Image, both DTBs, rescue.cpio.gz (ztboost.ko rebuilt for the new release), grub.cfg with entry 4 "PREVIOUS kernel" (Image.prev + cityman.prev.dtb).
 - Redundancy region (+0x464 ...) of the downstream calibration is not handled yet.
+- Result (final kernel 7.3.0-rc2-sumire-g70b1eac4d0ff): the sensors were already running when Linux starts (secure firmware) although the SROT
+  TSENS_EN bit reads 0; mainline init_common refused on that bit ("device not enabled"). New feature flag skip_en_check fixes the probe.
+  Sensors 0..4 read code 0 (not connected, no zone); 5 and 11 are live but have no known owner. Hand-made read (rescue/tools/ztts.c) and the driver agree.
+  First readings (just after a boot with software rendering on all cores): cpu0-3 (A53) 62-67 C, cpu4-7 (A57) 65-77 C, gpu 75 C,
+  PMIC die 63 C, battery 50 C. The A57 cluster already sits at ~75 C at idle-ish load, so clock/voltage increases need a margin check.
