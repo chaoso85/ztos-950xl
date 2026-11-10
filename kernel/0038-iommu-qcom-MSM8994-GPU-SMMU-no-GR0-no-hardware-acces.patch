@@ -1,0 +1,104 @@
+From 140ac6e92bc94c3f3755cdf67287ee7027af3940 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 16:01:04 +0000
+Subject: [PATCH] iommu/qcom: MSM8994 GPU SMMU: no GR0, no hardware access
+ before the first GPU power-up; enable gpu/gpu_iommu/ocmem on cityman
+
+References: Davitekk/ztOS talkman-port and the Android4Lumia950 fork comment
+("TZ owns GR0, do not touch GR0"), downstream msm_iommu-v1 attach order.
+Wrong before: gpu_iommu attach programmed a context bank with GX collapsed and
+resume fell into reset_ns (GR0 write), resetting the SoC at iommu group add.
+Now: context programming is deferred to resume (ctx_restore) after
+msm8994_oxili_pre_gpu_power() + restore_sec_cfg(18); resume returns -EAGAIN
+before that; the default domain is identity; reset_ns is never used on the
+GPU SMMU.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ .../msm8994-msft-lumia-octagon-cityman.dts    |  6 +++---
+ drivers/iommu/arm/arm-smmu/qcom_iommu.c       | 21 ++++++++++++++++---
+ 2 files changed, 21 insertions(+), 6 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
+index 4d538ad3933..7a010cdbcde 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
+@@ -64,11 +64,11 @@ F0 11 30 03 00 00 00 0C
+  * does not need the GPU.
+  */
+ &gpu {
+-	status = "disabled";
++	status = "okay";
+ };
+ 
+ &gpu_iommu {
+-	status = "disabled";
++	status = "okay";
+ };
+ 
+ /*
+@@ -78,7 +78,7 @@ &gpu_iommu {
+  * "fdd00000.sram ... returned 0", before the MDP SMMU probe that normally follows it.
+  */
+ &ocmem {
+-	status = "disabled";
++	status = "okay";
+ };
+ 
+ /*
+diff --git a/drivers/iommu/arm/arm-smmu/qcom_iommu.c b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+index 4664353d07d..c395296c837 100644
+--- a/drivers/iommu/arm/arm-smmu/qcom_iommu.c
++++ b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+@@ -567,7 +567,14 @@ static int qcom_iommu_init_domain(struct iommu_domain *domain,
+ 
+ 		ctx->sctlr = reg;
+ 
+-		qcom_iommu_program_ctx(qcom_iommu, ctx);
++		/*
++		 * MSM8994 GPU SMMU: the context bank is only reachable once GX+CX are up and
++		 * TZ restore_sec_cfg(18) has run. Until then keep the state in software;
++		 * qcom_iommu_resume() programs it via ctx_restore.
++		 */
++		if (!qcom_iommu_is_msm8994_gpu(qcom_iommu->dev) ||
++		    msm8994_oxili_pre_gpu_voted())
++			qcom_iommu_program_ctx(qcom_iommu, ctx);
+ 
+ 		ctx->domain = domain;
+ 	}
+@@ -926,7 +933,8 @@ static int qcom_iommu_def_domain_type(struct device *dev)
+ 	if (qcom_iommu && qcom_iommu->dev &&
+ 	    (of_device_is_compatible(qcom_iommu->dev->of_node, "qcom,msm8994-mdp-iommu") ||
+ 	     of_device_is_compatible(qcom_iommu->dev->of_node, "qcom,msm8992-mdp-iommu") ||
+-	     of_device_is_compatible(qcom_iommu->dev->of_node, "qcom,msm8974-mdp-iommu")))
++	     of_device_is_compatible(qcom_iommu->dev->of_node, "qcom,msm8974-mdp-iommu") ||
++	     of_device_is_compatible(qcom_iommu->dev->of_node, "qcom,msm8994-gpu-iommu")))
+ 		return IOMMU_DOMAIN_IDENTITY;
+ 
+ 	return 0;
+@@ -1334,6 +1342,13 @@ static int __maybe_unused qcom_iommu_resume(struct device *dev)
+ 	 * Do not uncollapse at bind (flag is clear; clk_bulk still
+ 	 * fails). After first hw_init, GX+CX before these clocks.
+ 	 */
++	/*
++	 * TZ owns the GPU SMMU GR0 and the rails are not up yet: no clock, SCM or MMIO
++	 * access before the first msm8994_oxili_pre_gpu_power().
++	 */
++	if (qcom_iommu_is_msm8994_gpu(dev) && !msm8994_oxili_pre_gpu_voted())
++		return -EAGAIN;
++
+ 	if (qcom_iommu_is_msm8994_gpu(dev)) {
+ 		ret = msm8994_oxili_pre_gpu_power_if_live();
+ 		if (ret)
+@@ -1362,7 +1377,7 @@ static int __maybe_unused qcom_iommu_resume(struct device *dev)
+ 		ret = qcom_scm_restore_sec_cfg(18, 0);
+ 		if (ret)
+ 			return ret;
+-	} else if (qcom_iommu->non_secure) {
++	} else if (qcom_iommu->non_secure && !qcom_iommu_is_msm8994_gpu(dev)) {
+ 		ret = qcom_iommu_reset_ns(qcom_iommu);
+ 		if (ret)
+ 			return ret;
+-- 
+2.43.0
+
