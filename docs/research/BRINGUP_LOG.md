@@ -300,3 +300,11 @@ reserved-memory region (Image cb2f50d4f39f, DTB 86a0723a9e62). Not yet done: IOM
 SMMU probe. In the videos the screen goes from the 0.435 s line to the 24.9 s line in ~4 s of real time,
 so fbcon dumps a backlog and lags real time: the last visible line is not where the SoC resets. FULL entry
 now boots without initcall_debug so init (SD logger, USB/SSH) is up as early as on SAFE (init at 2.5 s).
+
+## 21. FULL without initcall_debug resets before init; ramoops + PS_HOLD warm reset (0032)
+
+FULL without initcall_debug: no SD log of that boot at all (dmesg-prev.txt is a SAFE boot), so it reset
+before init (< 3.3 s). 0032 adds qcom_pon.ps_hold_warm=1 (PMIC PS_HOLD reset type -> warm, msm-3.10
+qpnp-power-on.c) so DDR and the ramoops console survive. FULL entry: console=ttyMSM0 (nonexistent, so
+ramoops is the only console and printing is not slowed or lagged by fbcon), initcall_debug, ps_hold_warm.
+Image 2d88a55f7f12, grub.cfg 3d93e7858463.
