@@ -43,6 +43,7 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 ## 1d. 2026-11-10 akşam: ztOS kökü, CPU saatleri, TSENS (ayrıntı: `research/BRINGUP_LOG.md` 25–31)
 - [x] ztOS kökü SD'nin 2. bölümünden açılıyor (`ztos.root=LABEL=ZR_ARCH`); yazılım renderlama (llvmpipe) `/etc/ztos/session.env` ile zorlanmış.
 - [x] A57 960 MHz + CCI 538 MHz açılışta (`ztboost.ko`), S11 1,0 V; hız bin'i 0 (2,0 GHz parça); Windows PEP tabloları çıkarıldı; TSENS thermal zone'ları (0037).
+- [ ] **GPU:** güç sırası analizi bitti (`research/GPU_DRIVER_ANALYSIS.md`): `gpu_iommu`'ya GX'i de ver, 3. bağlam bankası + IRQ'lar, kök saat 19,2 MHz önce, `a4xx_pm_resume` bekleme zaman aşımı; önce yalnızca GX+CX aç/GDSCR oku, sonra SMMU.
 - [ ] **A57'yi kademeli yükselt** (1248 → 1536 MHz, tavan 1225 mV) TSENS sıcaklığı izlenerek; A57 şimdiden boşta denecek yükte ~75 °C: sıcaklık payı ve soğutma/azaltma politikası (hot trip 115 °C DT'de var, eylem yok).
 - [ ] **A53 787 MHz üstü:** S8'de 1180–1225 mV köşesi (CCI ile ortak) + mem-acc.
 - [ ] **DDR/BIMC saati:** DRAM gecikmesi ~215 ns (normal ~100); RPM yolu ya da oy etkisiz kaldı. İnterconnect oyu denendi, etkisi yok.

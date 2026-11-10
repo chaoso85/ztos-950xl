@@ -7,6 +7,7 @@ Every Turkish page has an English version under [`en/`](en/); the English-only p
 | BRINGUP_LOG.md | [tr](BRINGUP_LOG.md) | [en](en/BRINGUP_LOG.md) | On-device bring-up chronology (sections 1-31): USB gadget, SD, boot-log audits, SMMU resets, display, ztOS root on SD, CPU/CCI clocks, speed bin, TSENS |
 | PORTING_GAPS.md | [tr](PORTING_GAPS.md) | [en](en/PORTING_GAPS.md) | Cross-source gap report: what exists in mainline vs what the phone needs |
 | GPU_CAMERA_REPORT.md | [tr](GPU_CAMERA_REPORT.md) | [en](en/GPU_CAMERA_REPORT.md) | Adreno 430 state, camera hardware and plan |
+| GPU_DRIVER_ANALYSIS.md | [tr](GPU_DRIVER_ANALYSIS.md) | [en](en/GPU_DRIVER_ANALYSIS.md) | Adreno 430 power-sequence analysis: Windows 10 Mobile, WOA, downstream/fork kernels; likely causes of the GPU SMMU hang |
 | FORK_ANALYSIS.md | [tr](FORK_ANALYSIS.md) | [en](en/FORK_ANALYSIS.md) | Android4Lumia950/linux analysis, GPU workaround root-cause list |
 | FINDINGS_feasibility.md | [tr](FINDINGS_feasibility.md) | [en](en/FINDINGS_feasibility.md) | Initial feasibility notes and the status of each risk |
 | DEVICES.md | [tr](DEVICES.md) | [en](en/DEVICES.md) | ACPI device map: addresses, IRQs, GPIOs, I2C (from the stock DSDT) |
