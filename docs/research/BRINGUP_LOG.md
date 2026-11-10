@@ -293,3 +293,10 @@ reserved-memory region (Image cb2f50d4f39f, DTB 86a0723a9e62). Not yet done: IOM
   type is the cause; the moment is (msm-3.10 does it at subsys_initcall).
 - 0030 reverts 0029; 0031 makes qcom_scm do the pool init at its probe (~0.45 s) on msm8994/8992 and
   qcom_iommu skip its own. Image 3773b07eaa25 (modules rebuilt for the new vermagic).
+
+## 20. 0031 result; the on-screen last line is not the reset moment
+
+0031 (early PTBL_INIT) still reset; last on-screen line `fd_gdsc ... returned 0` (24.925), before the MDP
+SMMU probe. In the videos the screen goes from the 0.435 s line to the 24.9 s line in ~4 s of real time,
+so fbcon dumps a backlog and lags real time: the last visible line is not where the SoC resets. FULL entry
+now boots without initcall_debug so init (SD logger, USB/SSH) is up as early as on SAFE (init at 2.5 s).
