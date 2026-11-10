@@ -57,3 +57,17 @@ Sıradaki iş: mainline `clk-alpha-pll` + özel mux/div saat sağlayıcısı + `
 - rescue/init loads /lib/modules/ztboost.ko at boot (skipped with ztos.noboost, set on the SAFE DT entry). Verified: ztboost runs at 2.7 s,
   cpu5 956 MHz, 4 x A57 862 MHz.
 - A53 stays at 763 MHz (above 787 MHz needs the 1180 mV corner on S8, shared with the CCI).
+
+## 30. CPU speed bin and Microsoft's frequency/voltage tables (Windows PEP, stock DSDT)
+
+- Speed bin: the stock DSDT (ffu_extract/plat/ACPI/dsdt.dsl, method with `OperationRegion (FUSE, SystemMemory, 0xFC4B8000, 0x5000)`,
+  `Field QWordAcc { Offset (0x40B0) PTE, 64 }`) reads PTE at 0xFC4B8000 + 0x40B0 = **0xFC4BC0B0** and uses `PTE & 7`: 0 = "2.0GHz", 1 = "1.8GHz".
+  The earlier phone resets came from reading 0xfc4b80b0 (raw alias, as the downstream Android driver does) and 0xfc4bc000 - not from the
+  right address. One readq() of 0xFC4BC0B0 (rescue/tools/ztfuse.c) is safe: PTE 10a1c71c8e4e78b0 -> speed bin 0 = the 2.0 GHz part.
+- Windows 10 Mobile's QCpep8994.sys (ffu_extract/mainos/Windows/System32/Drivers) carries the full tables, entries
+  {index, Hz, corner id, ceiling uV, nominal uV, floor uV, -1} at file offsets 0xba138 (A53), 0xba278 and 0xba748 (A57, two bins), 0xba418/0xba648/0xba978 (CCI), 0xba580.
+  - A53: 384 .. 1555.2 MHz (600/672/768 MHz at 1000 mV; 864/960 MHz nominal 1115 mV; 1248..1555 MHz nominal 1180 mV, ceiling 1225 mV).
+  - A57 (14 steps, the 2.0 GHz bin): 384 480 633.6 | 768 864 960 (1000 mV) | 1248 1344 1440 1536 1632 (nominal 1160 mV, ceiling 1225) | 1728 1824 1958.4 MHz (1225 mV).
+    The other table ends at 1766.4 MHz (the 1.8 GHz bin).
+  - CCI: up to 921.6 / 940.8 / 787.2 MHz in three variants; 600 MHz and up needs 1225 mV.
+- Ceiling for the highest corner on this SoC is therefore 1225 mV (not 1180 mV as in the Lumia 950 / MSM8992 regulator dtsi).
