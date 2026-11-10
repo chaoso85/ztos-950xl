@@ -56,3 +56,10 @@ Ayrıntı: `BRINGUP_LOG.md`.
 - **Dokunmatik** (S3708AR), tuşlar, hall, barometre, manyetometre, SMBCHG/FG: probe oluyor.
 - **Kamera**: CCS sürücüsü sensörlerle çalışmıyor (dummy supply, CCI timeout); tabloda "mainline'de yok" yazan satırların çoğu artık DT'de var ama donanımda çalışmıyor.
 - **Bluetooth**: ROME/QCA setup timeout. **Ses**: ADSP firmware yok, kart yok. **NFC**: arka kapak yokken polarite tespiti 33 sn bloklar, DT'de kapalı.
+
+## Durum güncellemesi (2026-11-10)
+- **Ekran çalışıyor:** msm DRM + çift DSI + Sergej, 1440x2560, konsol panelde; 4/4 temiz açılış. Açılış reset'inin kök
+  nedeni MDP SMMU'da UEFI taraması sürerken çağrılan TZ `restore_sec_cfg`; ayrıntı `MDP_SMMU_RESET.md`.
+- GPU, kamera (CAMSS/VFE), Venus SMMU'ları ve OCMEM şimdilik DT'de kapalı (aynı SMMU sınıfı sorun).
+- ADSP ve Venus için gereken imzalı imajlar orijinal FFU'dakilerle birebir aynı (LineageOS cityman portunun hash'leri);
+  Wi-Fi için Android QCA6174 firmware'i ve PCIe1 BCR reset'i gerekiyor. Kaynaklar: `SOURCES.md`.

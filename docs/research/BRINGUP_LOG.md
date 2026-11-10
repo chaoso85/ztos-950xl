@@ -9,8 +9,8 @@ stock UEFI (eMMC) -> rEFInd -> GRUB arm64-efi (SD: \EFI\BOOT\BOOTAA64.EFI) -> Li
 ```
 
 - Windows (eMMC) değiştirilmedi; GRUB menüsünde "Windows (eMMC)" girişi `bootmgfw_real.efi`'ye zincirler.
-- GRUB'da `loadenv/save_env` modülleri yok, yani tek seferlik açılış seçimi yapılamıyor; giriş 7 sn'lik menüden elle seçilir (varsayılan 0 = FULL DT).
-- Girişler (`rescue/grub.cfg`, 2026-11-08 sadeleştirildi): FULL DT (ekran/GPU açık), FULL DT msm DRM kapalı (ekran sorununu ayırmak için), Windows. SAFE/SAFE-ChipIdea girdileri ve DTB'leri SD'den kaldırıldı (DTS'ler kaynak ağacında duruyor).
+- GRUB'da `loadenv/save_env` modülleri yok, yani tek seferlik açılış seçimi yapılamıyor; giriş 7 sn'lik menüden elle seçilir.
+- Girişler (`rescue/grub.cfg`, güncel hâl 2026-11-10): 1) FULL DT (msm DRM panel; varsayılan), 2) SAFE DT (MDSS, GPU, kamera ve SMMU'ları kapalı, UEFI framebuffer), 3) Windows. Geçmiş değişiklikler aşağıdaki bölümlerde.
 
 ## 2. USB gadget: kurtarma kabuğu (doğrulandı)
 
@@ -262,76 +262,88 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
 - Aynı build'in 1. açılışı ~25 s'de reset attı; init'e ulaşmadığı için log yok. Sonraki açılışta PMIC: `pon 21 poff 02`
   = PS_HOLD ile kapanma (kullanıcı tuşu değil; TZ/yazılım kaynaklı reset). Reset noktası hâlâ MDSS/MDP SMMU probe aralığı (24–25.3 s).
 
-## 17. 0028: OCMEM off (reset right after its probe)
+## 17. 2026-11-10: 0028 — OCMEM kapatıldı (yanlış iz)
 
-120 fps video of the reset boot with 0027: last lines are `ocmem fdd00000.sram: 8 ports, 4 regions, 32 macros,
-interleaved` (25.439), `probe of fdd00000.sram with driver ocmem returned 0` (25.456) and `l20: Bringing 0uV into
-2950000-2950000uV` (25.466), then reset (next boot PMIC: pon 21, poff 02 = PS_HOLD). In the good boot the next
-line after ocmem is the MDP SMMU `iommu sec: pgtable size: 151552`. OCMEM is used only by the (disabled) GPU but
-its probe enables VDD_GFX, sets the RPM OCMEMGX clock and does a TZ restore_sec_cfg, so 0028 disables it.
-Test: several consecutive boots of the FULL DT entry; DTB sha 957c0aaec820.
+- 0027'nin reset olan açılışının 120 fps videosu: son okunan satırlar `ocmem fdd00000.sram: 8 ports…` (25.439),
+  `probe of fdd00000.sram … returned 0` (25.456), `l20: Bringing 0uV into 2950000uV` (25.466). İyi açılışta OCMEM'den
+  hemen sonra MDP SMMU'nun `iommu sec: pgtable size` satırı geliyor.
+- OCMEM'i yalnızca (kapalı) GPU kullanıyor ama probe'u VDD_GFX'i açıyor, OCMEMGX saatini ayarlıyor ve TZ
+  restore_sec_cfg(OCMEM) çağırıyor. 0028 cityman'da `&ocmem`'i kapattı. **Sonuç: 2/2 açılış yine reset** → neden bu değil.
+  (Kapalı kalması zararsız; GPU açılınca geri açılacak.)
 
-## 18. 0028 result, 0029: secure page-table pool out of the linear map
+## 18. 2026-11-10: 0029 — güvenli sayfa tablosu havuzu no-map bölgede (yanlış iz)
 
-0028 (OCMEM off): 2/2 boots reset. Video 20261110_033529: last lines `mmcc ... returned 0` (24.316),
-`qcom-iommu fd9cc000.iommu: iommu sec: pgtable size: 151552` (24.331), `s5: Bringing 0uV into 2150000uV`
-(24.339), then reset. So OCMEM was not the cause; the reset follows the TZ secure page-table setup.
-Sony msm_iommu_sec_ptbl_init() hands TZ a DMA_ATTR_NO_KERNEL_MAPPING buffer; on msm-3.10 arm64 that removes
-it from the linear map. Mainline keeps it mapped, and TZ XPU-protects it, so a speculative access can
-trigger an XPU violation -> reset, nondeterministically. 0029 gives the MDP SMMU a 256 KiB no-map
-reserved-memory region (Image cb2f50d4f39f, DTB 86a0723a9e62). Not yet done: IOMMU_SET_CP_POOL_SIZE
-(downstream calls it first when MP version >= 1.1.1).
+- 0028 videosu: son satırlar `mmcc … returned 0` (24.316), `qcom-iommu fd9cc000.iommu: iommu sec: pgtable size: 151552`
+  (24.331), `s5: Bringing 0uV …` (24.339).
+- Hipotez: msm-3.10'da `DMA_ATTR_NO_KERNEL_MAPPING` tamponu doğrusal haritadan çıkarıyor, mainline çıkarmıyor; TZ havuzu
+  XPU ile kilitlediği için spekülatif CPU erişimi XPU ihlali → reset. 0029: MDP SMMU'ya 256 KiB no-map reserved-memory
+  (`memory-region`). **Sonuç: yine reset**; son görünen satır bu kez interconnect probe'u (24.949) → hipotez yanlış.
 
-## 19. Reset located: inside IOMMU_SECURE_PTBL_INIT during the deferred-probe burst (0030/0031)
+## 19. 2026-11-10: modüler DRM, test modülü ve 0030/0031 (yine yanlış iz)
 
-- 0029 (no-map pool) still reset. pstore after the reset was empty (RAM lost on the PS_HOLD reset).
-- DRM_MSM and the sergej panel built as modules (only the MDP SMMU probes at boot). Video 20261110_040506:
-  last line `iommu sec: pgtable at 0x5ff60000 (no-map reserved)` (23.834), no `pgtable init done` -> the
-  SoC resets inside the TZ call, display driver not even loaded.
-- Test module rescue/tools/ztsec.c on the SAFE boot (idle system, venus/camss/oxili GDSCs off, MDSS on):
-  PTBL_SIZE 151552, dma pool 0xdd100000, PTBL_INIT ret 0, no reset. So neither the GDSC state nor the pool
-  type is the cause; the moment is (msm-3.10 does it at subsys_initcall).
-- 0030 reverts 0029; 0031 makes qcom_scm do the pool init at its probe (~0.45 s) on msm8994/8992 and
-  qcom_iommu skip its own. Image 3773b07eaa25 (modules rebuilt for the new vermagic).
+- Reset'in ardından pstore boş (RAM korunmuyor).
+- 0029 + `CONFIG_DRM_MSM=m` (panel sürücüsü de modül): açılışta yalnız MDP SMMU probe oluyor. Video: son satır
+  `iommu sec: pgtable at 0x5ff60000 (no-map reserved)` (23.834), `pgtable init done` yok → "reset `PTBL_INIT` içinde" sanıldı.
+- `rescue/tools/ztsec.c` (test modülü) SAFE açılışta (sakin sistem; venus/camss/oxili GDSC'leri kapalı, MDSS açık):
+  PTBL_SIZE 151552, dma havuz 0xdd100000, **PTBL_INIT ret 0, reset yok**.
+- Buradan "çağrının zamanı önemli" sonucu çıkarıldı: 0030 0029'u geri aldı, 0031 havuzu downstream gibi erken
+  (`qcom_scm` probe'unda, ~0.46 s) kuruyor, qcom_iommu kendi kurulumunu atlıyor. 0031 doğru ve kalıcı ama reset'i
+  **çözmedi**: son görünen satır bu kez `fd_gdsc` probe'u (24.925), MDP SMMU'dan bile önce.
 
-## 20. 0031 result; the on-screen last line is not the reset moment
+## 20. 2026-11-10: ekrandaki son satır reset anı değil
 
-0031 (early PTBL_INIT) still reset; last on-screen line `fd_gdsc ... returned 0` (24.925), before the MDP
-SMMU probe. In the videos the screen goes from the 0.435 s line to the 24.9 s line in ~4 s of real time,
-so fbcon dumps a backlog and lags real time: the last visible line is not where the SoC resets. FULL entry
-now boots without initcall_debug so init (SD logger, USB/SSH) is up as early as on SAFE (init at 2.5 s).
+- Videolar kare kare sayıldı: ekran kernel zamanında 0.4 s'den 24.9 s'ye gerçek zamanda ~4 s'de geçiyor. Yani fbcon
+  saniyelerce donup birikmiş günlüğü sonradan basıyor; **son görünen satır reset'in olduğu yer değil**. 17–19'daki
+  "son satır" çıkarımlarının hepsi bu yüzden yanıltıcıydı.
+- FULL girdisi `initcall_debug` olmadan açıldı: SD'de o açılışın günlüğü hiç yok (`dmesg-prev.txt` bir SAFE açılışı)
+  → reset init'ten (SAFE'te 2.5 s) önce. Reset sabit bir saniyede değil, açılış sırasında sabit bir noktada oluyor.
 
-## 21. FULL without initcall_debug resets before init; ramoops + PS_HOLD warm reset (0032)
+## 21. 2026-11-10: 0032 — PS_HOLD warm reset seçeneği (ramoops için; işe yaramadı)
 
-FULL without initcall_debug: no SD log of that boot at all (dmesg-prev.txt is a SAFE boot), so it reset
-before init (< 3.3 s). 0032 adds qcom_pon.ps_hold_warm=1 (PMIC PS_HOLD reset type -> warm, msm-3.10
-qpnp-power-on.c) so DDR and the ramoops console survive. FULL entry: console=ttyMSM0 (nonexistent, so
-ramoops is the only console and printing is not slowed or lagged by fbcon), initcall_debug, ps_hold_warm.
-Image 2d88a55f7f12, grub.cfg 3d93e7858463.
+- `qcom_pon.ps_hold_warm=1`: PMIC PS_HOLD reset tipi warm (gen1 PON 0x5a/0x5b, msm-3.10 `qpnp-power-on.c`).
+  FULL girdisi yalnız ramoops'a yazdı (`console=ttyMSM0`, fbcon gecikmesi olmasın diye).
+- Sonuç: reset nedeni `warm 02` (warm reset gerçekten oldu) ama ramoops bölgesi (0x0f200000) yeni açılışta geçersiz
+  → UEFI/DDR içeriği korumuyor. Seçenek çekirdekte duruyor, varsayılan kapalı.
 
-## 22. Root cause found: TZ restore_sec_cfg on the MDP SMMU during UEFI scanout (0033-0035)
+## 22. 2026-11-10: kök neden — UEFI taraması sürerken MDP SMMU'da TZ `restore_sec_cfg` (0033–0035)
 
-- pstore stayed empty even with the PS_HOLD warm reset (warm 02): the ramoops area does not survive.
-- New method: boot SAFE, enable the FULL-only DT nodes one at a time at runtime (rescue/tools/ztdt.c,
-  of_changeset status=okay) while /dev/kmsg is streamed over SSH. fuel-gauge (not bound: no parent
-  regmap), qpdst900 (apds9930/tsl2772), cci: no reset. MDP SMMU: reset, reproducibly.
-- With step markers: PTBL_SIZE ok, PTBL_INIT ret 0, populate ctx, resume: clocks on, then the SoC resets
-  inside qcom_scm_restore_sec_cfg(1, 0) - called from the ctx probe's parent resume while the UEFI
-  framebuffer is still scanned out. Downstream mdss_mdp.c delays the iommu attach (which is where 3.10
-  does restore_sec_cfg/BFB) until the splash handoff for exactly this reason.
-- 0033 = step markers (debug). 0034: the 8994 MDP SMMU is "hw_deferred": resume only enables clocks, the ctx probe does not resume
-  it, and the first translating-domain attach (msm DRM, after it stopped the UEFI scanout) does
-  restore_sec_cfg + BFB. Test: MDP SMMU enabled at runtime -> no reset; mdss + msm DRM loaded at runtime ->
-  deferred restore_sec_cfg ret 0, [drm] Initialized msm, fb0 msmdrmfb, alive.
-- 0035 markers to dev_dbg without pauses, DRM_MSM/panel back to built-in (Image 8d6fd74eaffd); FULL
-  grub entry back to the normal console without initcall_debug (grub.cfg a09926184cc5).
-- Lesson: the fbcon output lags real time by seconds; never locate a reset from the last visible line.
+Yöntem değişti: SAFE açılış (hep sağlam) + FULL'a özgü DT düğümlerini **çalışma anında** tek tek açmak
+(`rescue/tools/ztdt.c`, `of_changeset` ile `status = "okay"`; OF reconfig bildirimcileri cihazı oluşturuyor) ve bu
+sırada `/dev/kmsg`'yi SSH ile bilgisayara akıtmak. Reset olursa varsayılan GRUB girdisi SAFE'e döner, döngü kendi kendine sürer.
 
-## 23. FULL DT reliability with 0034
+| Düğüm (FULL'da açık, SAFE'te kapalı) | Sonuç |
+|---|---|
+| `pmic@2/fuel-gauge@4000` | bağlanmadı ("no parent regmap": SPMI çocukları reconfig ile oluşmuyor), reset yok |
+| `i2c@f9963000/qpdst900@39` | apds9930 / tsl2772 bağlandı, reset yok |
+| `cci@fda0c000` | i2c-qcom-cci bağlandı, reset yok |
+| `iommu@fd9cc000` (MDP SMMU) | **reset, her seferinde** |
 
-FULL DT (default entry since grub 25c9a4526b7e), Image 8d6fd74eaffd: 4/4 clean boots (1 user boot + 3
-safe-reboot cycles, each back in ~75 s = ~40 s firmware/GRUB + ~35 s uptime, i.e. no hidden extra boot).
-Every boot: early pgtable init done (0.46 s), [drm] Initialized msm (~22 s), msmdrmfb, init ~22.5 s,
-console visible on the panel, no SMMU faults/oops. Remaining: fuel-gauge probe blocks ~18 s
-(2.3 -> 20.4 s), one "pp done time out, lm=2" at DRM init, spmi-pmic-arb.c:786 WARNING in
-pmic_arb_chained_irq, Bluetooth QCA version read times out.
+0033 (geçici adım işaretleri, her adımdan sonra 400 ms bekleme) ile akan günlük:
+`PTBL_SIZE` → `PTBL_INIT ret 0` → ctx'ler oluşturuluyor → resume: saatler açık → `restore_sec_cfg(1, 0)` çağrılıyor → **reset**.
+Çağrıyı yapan, ctx probe'undaki "map after parent resume" (ebeveyn SMMU runtime-resume ediliyor). O anda UEFI
+framebuffer'ı MDP üzerinden hâlâ fiziksel adresten taranıyor.
+
+Downstream `mdss_mdp.c` tam olarak bunu yazıyor: "delay iommu attach until continous splash screen has finished handoff,
+as it may still be working with phys addr" — 3.10'da `restore_sec_cfg` + BFB attach anında yapılıyor (`msm_iommu-v1.c`).
+0026 yalnızca domain bağlamayı ertelemişti; sürücünün kendi resume'u TZ çağrısını yine açılışta yapıyordu.
+
+- **0034:** 8994 MDP SMMU `hw_deferred`: resume yalnız saatleri açıyor; ctx probe ebeveyni resume etmiyor (ioremap
+  donanıma dokunmaz); ilk çeviren domain attach'ında (msm DRM, `mdp5_kms_init` UEFI taramasını durdurduktan sonra)
+  `restore_sec_cfg` + BFB yapılıyor, sonrası normal.
+- Test (SAFE + çalışma anında): MDP SMMU açıldı → reset yok. MDSS açıldı + msm DRM yüklendi → ertelenen
+  `restore_sec_cfg ret 0`, `[drm] Initialized msm`, `fb0: msmdrmfb`, telefon ayakta.
+- **0035:** adım işaretleri `dev_dbg`, beklemeler kaldırıldı; `DRM_MSM` ve panel tekrar yerleşik (Image 8d6fd74eaffd).
+- Ders: fbcon'un son satırına bakarak reset yeri aranmaz; canlı günlük akışı (SSH) + çalışma anında DT düğümü açma çok daha hızlı.
+
+## 23. 2026-11-10: FULL DT güvenilirliği (0034 ile)
+
+- GRUB: FULL DT artık varsayılan, SAFE ikinci (grub.cfg 25c9a4526b7e).
+- **4/4 temiz açılış** (kullanıcı açılışı + 3 safe-reboot döngüsü). Her biri ~75 s'de geri geldi (~40 s kapanış/UEFI/GRUB
+  + ~35 s uptime → arada gizli bir açılış yok).
+- Her açılışta: `early pgtable init done` 0.46 s, `[drm] Initialized msm` ~22 s, `msmdrmfb`, init ~22.5 s, konsol panelde,
+  SMMU fault/oops yok.
+- Kalanlar (reset değil): fuel gauge probe ~18 s blokluyor (2.3 → 20.4 s); DRM açılırken bir kez `pp done time out, lm=2`;
+  `fb0: sys_imageblit: framebuffer is not in virtual address space`; `spmi-pmic-arb.c:786` WARNING
+  (`pmic_arb_chained_irq`); Bluetooth QCA sürüm okuma zaman aşımı; `qcadsp8994.mbn` ve `regulatory.db` initramfs'te yok.
+- Yamalar: 0029/0030 (ekle + geri al) ve 0033 (geçici hata ayıklama) seride tarihçe olarak duruyor; temiz seriye
+  indirilirken birleştirilecek.

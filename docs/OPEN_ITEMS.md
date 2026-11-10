@@ -1,4 +1,4 @@
-# Açık işler / Open items (2026-11-08, güncellendi)
+# Açık işler / Open items (güncelleme: 2026-11-10)
 
 Bu liste, "sonra bakarız" diye ertelenen, varsayılan ya da yarım kalan her şeyi tutar. İş bitince `[x]` yapın, yeni ertelenen bir şey çıkınca buraya ekleyin.
 Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
@@ -14,19 +14,30 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 - [ ] **PSCI eksik:** kapatma / yeniden başlatma güvenilmez.
 
 ## 1b. Tam-DT açılış günlüğünden çıkanlar (2026-11-08, ayrıntı: `research/BRINGUP_LOG.md`)
-- [ ] (!) **Ekran yanmıyor** (düzeltme yazıldı, cihazda denenmedi: patch 0018 `CLK_OPS_PARENT_ENABLE`): DSI açılırken `pclk0/1`, `byte0/1_clk_src` "rcg didn't update its configuration" (DSI PHY PLL çalışmıyor); `pp done time out, lm=2`. Sıra: PHY PLL / piksel saati.
-- [ ] **GPU** (0019 iommu `tbu` saatini çıkardı → GX kapalıyken SMMU yazması CPU'yu kilitledi; 0020 geri koydu, `stuck at 'off'` uyarısı beklenen; firmware initramfs'e `build_initramfs.sh ... fw/` ile giriyor, depoda yok; denenmedi): `a420_pm4.fw` / `a420_pfp.fw` initramfs'te yok (61 sn bekleme); `oxili_gfx3d_clk` stuck (GPU iommu resume, GX güç alanı); adreno `vdd`/`vddcx` ve DSI `lab_reg`/`ibb_reg` DT'de yok; GPU cooling device kaydı başarısız.
+- [x] **Ekran:** 2026-11-10 çalışıyor (msm DRM, Sergej, 1440x2560, konsol panelde, 4/4 temiz açılış). Yollar: 0018/0021 (DSI saatleri), 0026 (MDP identity domain), 0027/0031 (TZ güvenli sayfa tablosu havuzu), **0034** (MDP SMMU TZ `restore_sec_cfg` DRM attach'ına kadar ertelendi; kök neden `research/MDP_SMMU_RESET.md`).
+- [ ] **GPU** (2026-11-10: GPU, GPU SMMU ve OCMEM DT'de kapalı — 0024/0028. Açılırken MDP'deki kural uygulanacak: rail/saat açılmadan SMMU'ya TZ/BFB/context yazması yok.) (Eski not: 0019 iommu `tbu` saatini çıkardı → GX kapalıyken SMMU yazması CPU'yu kilitledi; 0020 geri koydu, `stuck at 'off'` uyarısı beklenen; firmware initramfs'e `build_initramfs.sh ... fw/` ile giriyor, depoda yok; denenmedi): `a420_pm4.fw` / `a420_pfp.fw` initramfs'te yok (61 sn bekleme); `oxili_gfx3d_clk` stuck (GPU iommu resume, GX güç alanı); adreno `vdd`/`vddcx` ve DSI `lab_reg`/`ibb_reg` DT'de yok; GPU cooling device kaydı başarısız.
 - [ ] `fb0: framebuffer is not in virtual address space` (fbcon msm fbdev'e geçerken).
 - [x] `NR_CPUS` 6 -> 8 (950 XL 4xA57+4xA53) ve A53/A57 için ayrı PMU (patch 0017). Cihazda henüz denenmedi.
 - [x] NFC (pn547) DT'de kapatıldı: arka kapak yokken polarite tespiti 33 sn bloklıyordu. Kapak takılınca `status = "disabled"` kaldırılacak.
 - [ ] `psci-cpuidle` -ENODEV: CPU idle durumları yok (güç tüketimi).
 - [x] (DT'de kapatıldı/düzeltildi, patch 0019; denenmedi) DT'de olmayan/yanlış donanım (ad7147 IRQ sözdizimi hatası da düzeltildi): si470x (5-0011), fan53555 (5-006c), ad714x (4-002c, IRQ yok), mpu6050 (2-0068), ccs sensörleri (6-0020, 6-006c, 7-0020); tsl2772 supply'ları; `i2c_qup f9967000` tx DMA kanalı.
-- [ ] Gecikmeler: fuel gauge probe ~19,8 sn, RPM regülatörleri ~8,3 sn, vadc + `spurious spmi irq apid=158` WARN.
+- [ ] Gecikmeler: fuel gauge probe açılışı ~18 sn bekletiyor (2.3 → 20.4 s, 2026-11-10); `spmi-pmic-arb.c:786` WARNING (`pmic_arb_chained_irq`, eski adıyla spurious spmi irq apid=158) her açılışta.
 - [x] `FW_LOADER_USER_HELPER(_FALLBACK)` kapatıldı: eksik firmware artık 60 sn beklemiyor (denenmedi).
 - [ ] Bluetooth ROME/QCA6390 0xfc00 timeout; ses: ADSP firmware (`qcadsp8994.mbn`) ve `regulatory.db` yok.
-- [ ] `keep_bootcon` olmadan zamanlaması gerçekçi bir günlük al (grub.cfg'den kaldırıldı 2026-11-08; donanımda henüz alınmadı).
+- [x] `keep_bootcon` olmadan zamanlaması gerçekçi günlük alındı (2026-11-09'dan beri her açılış).
 - [ ] "Volume was not properly unmounted" safe-reboot sonrası da çıkıyor; nedeni bulunamadı.
 - [ ] `ztos-lumia.config` artık izleme (ftrace/tracefs) seçeneklerini içeriyor; kararlı sürümde kapatılmalı.
+
+## 1c. 2026-11-10 reset avından kalanlar (ayrıntı: `research/BRINGUP_LOG.md` 17–23)
+- [ ] DRM açılırken bir kez `pp done time out, lm=2`; panel beslemeleri downstream'den farklı (vddio = pm8994_s4, PMI8994 LAB/IBB "oled" modu; bizde l12 + dummy lab/ibb).
+- [ ] MDP SMMU'da downstream'e göre kalan farklar: BFB 0x2000 = 0x3 (MICRO_MMU_CTRL) yazılmıyor; context programlanırken SCTLR.M'den önce TLBIASID + TLBSYNC yok; `mdp_ebi` bus oyu yok.
+- [ ] GPU, Venus ve VFE SMMU'ları açılırken 0034'teki erteleme yaklaşımı (blok güçlenip gerçek domain bağlanana kadar TZ/BFB/context yok).
+- [ ] OCMEM cityman'da kapalı (0028); GPU açılınca geri açılacak.
+- [ ] Yama serisini temizle: 0029/0030 (ekle + geri al) ve 0033 (geçici hata ayıklama) birleştirilecek; `MDP_STEP` işaretleri (`dev_dbg`) kararlı sürümde kaldırılabilir.
+- [ ] `qcom_pon.ps_hold_warm` seçeneği (0032) duruyor, varsayılan kapalı; ramoops UEFI warm reset'te de korunmuyor. Kalıcı çökme günlüğü için başka yol (ör. SD'ye erken kmsg yazımı) gerekirse düşünülecek.
+- [ ] SD'de deney artıkları: `ztos/ko/`, `ztos/loaddrm.sh`, `cityman.prev.dtb`, `msm8994-msft-lumia-octagon-cityman.prev.dtb` (zararsız; temizlenecek).
+- [ ] ADSP: imzalı `qcadsp8994.mbn` (FFU'dakiyle aynı hash) kurulumda telefondan alınıp initramfs/firmware yoluna konacak; ses kartı ondan sonra.
+- [ ] Wi-Fi: PCIe1 + `GCC_PCIE_1_BCR` reset + Android QCA6174 `qwlan30.bin` / cihazın `bdwlan30.bin`'i. BT: `rampatch_00440302.bin` / `nvm_00440302.bin` ve güç sırası.
 
 ## 2. Çekirdek birleştirme (master + camss) — bilerek bırakılanlar
 - [ ] `camss` dalındaki mmcc değişiklikleri alınmadı: mdss GDSC `GENPD_FLAG_NO_STAY_ON`, `oxili_gx` supply adı `vdd-gfx`, `OXILICX_AXI_CLK` binding'i. GPU/ekran sorun çıkarırsa ilk şüpheliler.

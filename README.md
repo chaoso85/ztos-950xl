@@ -4,7 +4,7 @@
 
 **Bringing [ztOS](https://github.com/Zerone-Laboratories/ztOS) (Linux + the ztMETRO shell) to the Microsoft Lumia 950 XL**
 
-![status](https://img.shields.io/badge/status-early%20research-orange)
+![status](https://img.shields.io/badge/status-early%20bring--up-orange)
 ![device](https://img.shields.io/badge/device-Lumia%20950%20XL%20(cityman)-blue)
 ![soc](https://img.shields.io/badge/SoC-Snapdragon%20810%20(MSM8994)-red)
 ![kernel](https://img.shields.io/badge/kernel-mainline%20based-success)
@@ -14,7 +14,7 @@
 
 </div>
 
-> **Status: early bring-up.** The kernel boots on the phone from an SD card; a rescue shell over USB (SSH) and the SD card work. Display, GPU, camera, audio and Wi-Fi do not work yet. Details: [`docs/research/BRINGUP_LOG.md`](docs/research/BRINGUP_LOG.md) (Turkish). Do not flash anything from this repo to your only device without a full eMMC backup.
+> **Status: early bring-up.** The kernel boots on the phone from an SD card. The panel works with `drm/msm` (1440x2560, console on screen), and the rescue shell over USB (SSH) and the SD card work. GPU, camera, audio and Wi-Fi do not work yet. The boot-time SoC reset that blocked the display for days is fixed: [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md). Full chronology: [`docs/research/BRINGUP_LOG.md`](docs/research/BRINGUP_LOG.md) (Turkish). Do not flash anything from this repo to your only device without a full eMMC backup.
 
 ## Goal
 
@@ -44,19 +44,19 @@ SD card  ──►  Windows-on-ARM UEFI (eMMC, untouched) ──► rEFInd
 
 ## Hardware status
 
-Legend: ✅ builds / data ready · 🟡 code exists upstream-in-fork, needs cleanup · 🔴 not started · ❔ untested on hardware
+Legend: ✅ works on the phone · 🟡 partly works / needs work · 🔴 not working or disabled · ❔ untested on hardware
 
 | Subsystem | Status | Notes |
 |---|---|---|
 | eMMC / SD | ✅ | eMMC is visible (HS200, left untouched). SD works; `no-1-8-v` keeps it at 3.3 V high-speed (fixed 2.95 V vqmmc). |
 | Touch (Synaptics RMI4) | ✅ | S3708AR registers as an input device. |
-| Display (dual DSI, command mode) | 🟡 | MDP5 v1.9, DSI and panel `sergej` bind but the panel stays dark: pixel/byte clocks are reprogrammed while the DSI PHY PLL is not running, `pp done time out`. |
-| GPU (Adreno 430) | 🟡 | `drm/msm` binds; `a420_pm4.fw` missing, `oxili_gfx3d_clk` stuck off (iommu resume, GX power domain). |
-| Camera | 🟡 | CAMSS + CCI probe; the generic CCS driver does not work with the sensors (dummy supplies, CCI timeout). |
+| Display (dual DSI, command mode) | ✅ | MDP5 v1.9 + dual DSI + Sergej panel, 1440x2560, fbcon on the panel. 4/4 clean boots. The MDP SMMU's TZ setup is deferred until DRM takes over from the UEFI framebuffer (patch 0034). One `pp done time out` at DRM init remains. |
+| GPU (Adreno 430) | 🔴 | Disabled in DT (with its SMMU and OCMEM): attaching its SMMU with GX unpowered reset or hung the SoC. Firmware `a420_pm4/pfp.fw` comes from linux-firmware. |
+| Camera | 🔴 | CAMSS and the VFE/Venus SMMUs are disabled in DT for the same SMMU reason; CCI probes. The CCS driver did not work with the sensors before. |
 | USB gadget (rescue/SSH) | ✅ | DWC3 + HS PHY (TCSR routing + LK QSCRATCH values). Windows sees ACM + RNDIS, SSH works. |
-| Charger / fuel gauge | 🟡 | SMBCHG and PMI8994 FG probe (battery ID is read); FG probe takes ~20 s. |
-| Wi-Fi / Bluetooth | 🔴 | PCIe RP1 (Wi-Fi) not wired in DT; BT ROME/QCA setup command times out. |
-| Audio | 🟡 | No sound card: ADSP firmware (`qcadsp8994.mbn`) missing, `msm-snd` deferred. |
+| Charger / fuel gauge | 🟡 | SMBCHG and PMI8994 FG probe (battery ID is read); the FG probe blocks boot for ~18 s. |
+| Wi-Fi / Bluetooth | 🔴 | PCIe1 (Wi-Fi) not wired in DT; the LineageOS cityman port needs a `GCC_PCIE_1_BCR` reset and the Android QCA6174 `qwlan30.bin`. BT version read times out. |
+| Audio | 🟡 | No sound card yet: `msm-snd` deferred. The signed ADSP image is the stock FFU's own `System32\qcadsp8994.mbn` (same hash as the LineageOS cityman port uses); it must be taken from the user's own phone. |
 | Modem / SIM | 🔴 | ADSP loads, modem does not (per upstream notes). |
 | Sensors, haptics, NFC | 🟡 | Hall, keys, barometer, magnetometer work; MPU6050 / light sensor do not answer. NFC is disabled in DT (without the back cover polarity detection blocks for 33 s). |
 
@@ -67,7 +67,9 @@ Legend: ✅ builds / data ready · 🟡 code exists upstream-in-fork, needs clea
 - [x] Merge fork `master` + `camss` unique parts onto one tree; kernel + cityman DTB build
 - [x] Enable `usb3` + UC120 → USB gadget rescue shell (SSH works)
 - [x] First on-device boot from SD (efifb console)
-- [ ] Display + GPU (current work): remove workarounds, proper runtime PM, `kmscube` / `glmark2-es2`
+- [x] Display: msm DRM on the Sergej panel, boot-time SMMU reset fixed
+- [ ] Boot time (fuel gauge), remaining display warnings
+- [ ] GPU: power sequencing before its SMMU, then `kmscube` / `glmark2-es2`
 - [ ] ztOS GSI rootfs + `ztconflo` `uefi-esp` flash method + ztOSIAL manifest
 - [ ] Wi-Fi, audio, charging, sensors
 - [ ] Camera: CCS sensor bring-up, then AF/OIS/flash, libcamera
@@ -76,12 +78,13 @@ Legend: ✅ builds / data ready · 🟡 code exists upstream-in-fork, needs clea
 ## Repository layout
 
 ```
-kernel/            Patch series (0001-0022; 0021-0022 not yet tested on the phone) on top of Android4Lumia950/linux master, kernel .config, built DTBs
-rescue/            Rescue initramfs (init, USB gadget, SSH), GRUB menu, SD/ESP preparation scripts
+kernel/            Patch series 0001-0035 on top of Android4Lumia950/linux master (0029/0030 add and revert, 0033 is a temporary debug patch kept as history), kernel .config, built DTBs
+rescue/            Rescue initramfs (init, USB gadget, SSH, SD logger), GRUB menu (FULL DT default, SAFE DT second), SD/ESP scripts
+rescue/tools/      Debug modules: ztdt.c (enable a DT node at runtime), ztsec.c (TZ secure page-table SCM calls by hand)
 docs/research/     Findings (hardware gaps, GPU/camera report, fork analysis, ACPI device map, camera config)
 ```
 
-Start with [`docs/research/PORTING_GAPS.md`](docs/research/PORTING_GAPS.md) and [`docs/research/GPU_CAMERA_REPORT.md`](docs/research/GPU_CAMERA_REPORT.md). Most research notes are currently written in Turkish.
+Start with [`docs/research/MDP_SMMU_RESET.md`](docs/research/MDP_SMMU_RESET.md), [`docs/research/PORTING_GAPS.md`](docs/research/PORTING_GAPS.md) and [`docs/research/SOURCES.md`](docs/research/SOURCES.md). Most research notes are currently written in Turkish.
 
 ## Building the kernel
 
@@ -89,7 +92,7 @@ Start with [`docs/research/PORTING_GAPS.md`](docs/research/PORTING_GAPS.md) and 
 git clone https://github.com/Android4Lumia950/linux && cd linux
 git checkout master
 git am /path/to/ztos-950xl/kernel/00*.patch
-cp /path/to/ztos-950xl/kernel/ztos-lumia.config .config   # NR_CPUS=8, tracing on
+cp /path/to/ztos-950xl/kernel/ztos-lumia.config .config   # NR_CPUS=8, DRM_MSM=y, QCOM_WDT=y, tracing on
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)" Image qcom/msm8994-msft-lumia-octagon-cityman.dtb
 ```
@@ -110,6 +113,8 @@ make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)" Image qcom/msm8994
 
 - [Zerone Laboratories](https://github.com/Zerone-Laboratories) — ztOS / ztMETRO
 - [Android4Lumia950](https://github.com/Android4Lumia950) and contributors — Lumia 950 / 950 XL mainline kernel work this builds on (display, GPU, CAMSS, UC120, SMBCHG, audio)
+- The Sony/LineageOS MSM8994 3.10 kernels — the downstream SMMU and MDSS code that explained the boot-time reset
+- giannoccarol (Lorenzogianno) — LineageOS 23.2 cityman port and its documentation; Empyreal96, wiki.nura.eco and Davitekk — notes and USB PHY values. Full list: [`docs/research/SOURCES.md`](docs/research/SOURCES.md)
 - The LumiaWOA / Lumia950XLPkg community — UEFI, and years of reverse-engineering knowledge
 - Linux, Mesa/freedreno and the postmarketOS community
 
