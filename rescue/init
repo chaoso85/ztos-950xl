@@ -76,6 +76,18 @@ chmod +x /sbin/safe-reboot
 log() { echo "[rescue] $*" | tee -a /dev/kmsg >/dev/null 2>&1; echo "[rescue] $*"; }
 log "init start, kernel $(uname -r)"
 
+# --- CPU/CCI clocks (stop-gap until a cpufreq driver exists): A57 381 -> up to 960 MHz, CCI 269 -> 538 MHz. ---
+# tools/ztboost.c; skipped with ztos.noboost on the kernel command line (the SAFE DT entry sets it).
+if grep -q ztos.noboost /proc/cmdline; then
+  log "ztos.noboost: leaving the CPU clocks as the bootloader set them"
+elif [ -f /lib/modules/ztboost.ko ]; then
+  i=0; while [ $i -lt 20 ]; do
+    insmod /lib/modules/ztboost.ko 2>/dev/null && break
+    sleep 0.5; i=$((i+1))
+  done
+  dmesg | grep ztboost | while read -r l; do log "$l"; done
+fi
+
 # --- UC120 Type-C controller firmware (optional calibration only; the FPGA bitstream is loaded by UEFI) ---
 [ -e /lib/firmware/lattice/ice5lp_2k_cal.bin ] || log "note: no lattice/ice5lp_2k_cal.bin (UC120 runs uncalibrated)"
 

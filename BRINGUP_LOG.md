@@ -43,3 +43,17 @@ Sıradaki iş: mainline `clk-alpha-pll` + özel mux/div saat sağlayıcısı + `
 - SCM `qcom_scm_io_readl` of these registers returns -22 on this TZ; not needed.
 - Measured with cpubench: cpu4/cpu5 ~765 MHz (was ~381), L1 sweep 2574 MB/s (was ~1290 est.), DRAM stride 2690 MB/s.
 - Next: the same on A53 (above 768 MHz needs 1.18 V + mem-acc), CCI/BIMC votes, then a real mainline-style cpufreq driver.
+
+## 29. A57 960 MHz, CCI 538 MHz, applied at boot (rescue/tools/ztboost.c)
+
+- A57 PLL retune works from the safe source (GPLL0 aux, lfmux sel 3): L=90 -> 861 MHz, L=100 -> 956 MHz (single core). The SoC lowers the clock itself
+  with more loaded A57 cores (2 cores 950, 3 cores ~899, 4 cores ~766 in the first run, ~862 after the boot-time setup). Rail S11 held at the
+  downstream CPR ceiling for these steps (1000 mV, msm8992-regulator.dtsi apc1 fuse corner 3).
+- CCI: bootloader runs it at 268.8 MHz (CCI PLL L=28 = 537.6 MHz, hfmux 2 = PLL/2). hfmux 3 (PLL direct) doubles it, through AUX as safe source,
+  plain writel works (S8 is already 1000 mV). Effect: L2-miss/CCI latency 57.7 -> 42.4 ns at 2 MB.
+- DRAM latency is unchanged (~215 ns) by the CCI step and by an interconnect bandwidth vote (mas_ampss_m0 -> slv_ebi_ch0, 6.4 GB/s; the MDP already votes
+  that). BIMC/DDR clock needs a working RPM path: open item.
+- SCM io_readl of these registers returns -22; not needed.
+- rescue/init loads /lib/modules/ztboost.ko at boot (skipped with ztos.noboost, set on the SAFE DT entry). Verified: ztboost runs at 2.7 s,
+  cpu5 956 MHz, 4 x A57 862 MHz.
+- A53 stays at 763 MHz (above 787 MHz needs the 1180 mV corner on S8, shared with the CCI).
