@@ -227,3 +227,23 @@ SD düzeni: `\ztos\{Image, rescue.cpio.gz, grub.cfg, msm8994-msft-lumia-octagon-
   adresten tarıyorken) çeviren DMA domain'i yerine identity domain alıyor; context bank'a dokunulmuyor. msm DRM kendi
   paging domain'ini `msm_kms_init_vm()` içinde, `mdp5_kms_init()` timing engine'leri durdurduktan sonra bağlıyor.
 - Test: GRUB 2. girdi ("FULL DT, msm DRM on (TEST…)"), Image 76509d8c242f, DTB 927c2b4a77bb (0025: GPU/CAMSS/VFE/Venus kapalı).
+
+## 15. 2026-11-10: LineageOS 23.2 (Android 16) cityman portu — giannoccarol (XDA: Lorenzogianno)
+
+- Kernel: `giannoccarol/android_kernel_mmo_msm8994` dalı `lineage-23-cityman` (3.10.108, Android4Lumia950 MMO
+  kernel + cityman; son commit 2026-11-08). Boot zinciri **LK** (Android4Lumia950 installer, Windows silinir) —
+  bizim UEFI→GRUB zincirinden farklı; LK ekranı kendisi açıp downstream mdss'e devrediyor.
+- Çalışanlar (ilk mesaj, 2026-11-08 build): ekran + GPU, AOD, dokunmatik, Wi-Fi (QCA6174), BT (A2DP), LTE/SMS/arama
+  (CSFB), hoparlör/kulaklık/mikrofon, NFC, sensörler, deep sleep, arka/ön kamera, flaş, Venus donanım video,
+  USB ADB/OTG, 3 A USB-C şarj, **UC120 PD + DisplayPort alt mode** (USB-C→HDMI 1080p60). GPS yok, SELinux permissive.
+- Dosyalar: `arch/arm64/boot/dts/mmo/msm8994-mmo-cityman.dts`, `common/*.dtsi` (mdss, regulator, connectivity…),
+  `panels/dsi-panel-sergej-wqhd-dualdsi-cmd.dtsi`, `drivers/misc/uc120.c`, `sound/soc/codecs/tas2552.c`,
+  `Documentation/arm64/cityman-{adsp,venus,wifi,ril,credits}.txt`.
+- Panel: `vddio-supply = pm8994_s4`, `qcom,dsi-panel-bias-vreg` + PMI8994 `labibb` "oled" modu (bizde lab/ibb dummy).
+- **ADSP:** imzalı cityman imajı `qcadsp8994.mbn` 10 149 719 B, SHA-256 3e101699…a835e, HW_ID 009400E100450000
+  (Nokia trustroot). **Bizim FFU'daki `System32\qcadsp8994.mbn` birebir aynı hash.** Angler/başka imaj PAS_INIT -2 ile reddediliyor.
+- **Venus:** `qcvss8994.mbn` 1 002 800 B, SHA-256 7db914db…0182 — **FFU'daki dosya birebir aynı.**
+- **Wi-Fi:** PCIe1 endpoint 0xffffffff okuyordu; ilk kurulumdan önce `GCC_PCIE_1_BCR` (GCC+0x1b40) assert/deassert →
+  168c:003e. `qcom,ep-wakeirq` geri. Firmware: Android QCA6174 hw3 `qwlan30.bin` (750 788 B, f84fd11d…); FFU'daki
+  Windows `qwlan30.bin` (1 068 368 B, 3b7e5f82…) **çalışmıyor**. Board kalibrasyonu `bdwlan30.bin` cihazın kendi dosyası.
+- Modem: MBA 0x06e80000, metadata 0x06f80000; modem 0x07000000, peripheral 0x0ca00000 (31 MiB, ADSP ~24 + Venus ~5), ramoops 0x0f200000.
