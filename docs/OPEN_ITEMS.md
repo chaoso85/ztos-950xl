@@ -15,7 +15,7 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 
 ## 1b. Tam-DT açılış günlüğünden çıkanlar (2026-11-08, ayrıntı: `research/BRINGUP_LOG.md`)
 - [x] **Ekran:** 2026-11-10 çalışıyor (msm DRM, Sergej, 1440x2560, konsol panelde, 4/4 temiz açılış). Yollar: 0018/0021 (DSI saatleri), 0026 (MDP identity domain), 0027/0031 (TZ güvenli sayfa tablosu havuzu), **0034** (MDP SMMU TZ `restore_sec_cfg` DRM attach'ına kadar ertelendi; kök neden `research/MDP_SMMU_RESET.md`).
-- [ ] **GPU** (2026-11-10: GPU, GPU SMMU ve OCMEM DT'de kapalı — 0024/0028. Açılırken MDP'deki kural uygulanacak: rail/saat açılmadan SMMU'ya TZ/BFB/context yazması yok.) (Eski not: 0019 iommu `tbu` saatini çıkardı → GX kapalıyken SMMU yazması CPU'yu kilitledi; 0020 geri koydu, `stuck at 'off'` uyarısı beklenen; firmware initramfs'e `build_initramfs.sh ... fw/` ile giriyor, depoda yok; denenmedi): `a420_pm4.fw` / `a420_pfp.fw` initramfs'te yok (61 sn bekleme); `oxili_gfx3d_clk` stuck (GPU iommu resume, GX güç alanı); adreno `vdd`/`vddcx` ve DSI `lab_reg`/`ibb_reg` DT'de yok; GPU cooling device kaydı başarısız.
+- [x] **GPU çekirdek tarafı** (2026-11-10): `gpu`, `gpu_iommu`, `ocmem` açık (patch 0038); Mesa freedreno `FD430`, GLES 3.0, FBO clear + readback doğru. Kalan: GPU cooling device kaydı, adreno `vdd`/`vddcx` dummy, DSI `lab_reg`/`ibb_reg`.
 - [ ] `fb0: framebuffer is not in virtual address space` (fbcon msm fbdev'e geçerken).
 - [x] `NR_CPUS` 6 -> 8 (950 XL 4xA57+4xA53) ve A53/A57 için ayrı PMU (patch 0017). Cihazda doğrulandı: 8 çekirdek açılıyor.
 - [x] NFC (pn547) DT'de kapatıldı: arka kapak yokken polarite tespiti 33 sn bloklıyordu. Kapak takılınca `status = "disabled"` kaldırılacak.
@@ -33,7 +33,7 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 - [ ] DRM açılırken bir kez `pp done time out, lm=2`; panel beslemeleri downstream'den farklı (vddio = pm8994_s4, PMI8994 LAB/IBB "oled" modu; bizde l12 + dummy lab/ibb).
 - [ ] MDP SMMU'da downstream'e göre kalan farklar: BFB 0x2000 = 0x3 (MICRO_MMU_CTRL) yazılmıyor; context programlanırken SCTLR.M'den önce TLBIASID + TLBSYNC yok; `mdp_ebi` bus oyu yok.
 - [ ] GPU, Venus ve VFE SMMU'ları açılırken 0034'teki erteleme yaklaşımı (blok güçlenip gerçek domain bağlanana kadar TZ/BFB/context yok).
-- [ ] OCMEM cityman'da kapalı (0028); GPU açılınca geri açılacak.
+- [x] OCMEM cityman'da açıldı (0038), GPU ile birlikte sorunsuz.
 - [ ] Yama serisini temizle: 0029/0030 (ekle + geri al) ve 0033 (geçici hata ayıklama) birleştirilecek; `MDP_STEP` işaretleri (`dev_dbg`) kararlı sürümde kaldırılabilir.
 - [ ] `qcom_pon.ps_hold_warm` seçeneği (0032) duruyor, varsayılan kapalı; ramoops UEFI warm reset'te de korunmuyor. Kalıcı çökme günlüğü için başka yol (ör. SD'ye erken kmsg yazımı) gerekirse düşünülecek.
 - [ ] SD'de deney artıkları: `ztos/ko/`, `ztos/loaddrm.sh`, `cityman.prev.dtb`, `msm8994-msft-lumia-octagon-cityman.prev.dtb` (zararsız; temizlenecek).
@@ -67,7 +67,7 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 - [ ] Geçici çözümleri kök nedene indir: 32 MiB GEM başlangıcı, autosuspend yok / GX hep açık, SP/TP elle güç açma, TZ SEA veren register dump'ı, OCMEM sırası (bkz. `research/FORK_ANALYSIS.md`).
 - [ ] `a420_pm4.fw` / `a420_pfp.fw` yeniden dağıtım lisansını `linux-firmware` WHENCE'inde doğrula.
 - [x] ztMETRO yazılım render (llvmpipe, `kms_swrast`) ile çalışıyor ama 3–9 fps; GPU şart.
-- [ ] **Sıradaki iş:** GPU güç sırası (rail → saat → SMMU; gerçek domain bağlanana kadar TZ/BFB/context yok), `a420_pm4/pfp.fw` initramfs'e, ardından `kmscube` / `glmark2-es2`.
+- [ ] **Sıradaki iş:** ztMETRO'yu GPU'ya al (`/etc/ztos/session.env` içindeki llvmpipe zorlamasını kaldır, root gerekir), `kmscube` / `glmark2-es2`, devfreq, soğutma.
 - [ ] MDP5 dual-LM / 20nm DSI PHY yamaları fork'ta "needs review".
 
 ## 4. Kamera

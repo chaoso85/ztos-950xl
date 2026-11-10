@@ -86,3 +86,6 @@ Patch (kernel/0038): no GR0 access on the GPU SMMU, no hardware access before th
 - `debugfs dri/1/gpu`: `revision 430`, `rbbm-status 0x1`, ring `iova 0x2001000`, `rptr == wptr == 18`: the CP consumed its init commands (hw_init done, SMMU translation works).
 - Open: a real GPU workload (Mesa freedreno a4xx), the `Couldn't register GPU cooling device` error, devfreq idle at 27 MHz, `vdd/vddcx` as dummy regulators.
 - Lesson: the section 8 hypothesis was right; the problem was not the power votes but touching the TZ-owned GR0 too early.
+
+### 9a. Userspace (ztOS root, `zerone`, Mesa 26.2.6)
+`MESA_LOADER_DRIVER_OVERRIDE=msm` + GBM/EGL (`/dev/dri/renderD128`): `VENDOR freedreno`, `RENDERER FD430`, `OpenGL ES 3.0`; FBO complete, `glClear` + `glReadPixels` = (255,0,128,255), no GL error, no hang or fault in the kernel. The Mesa GPU path works; ztMETRO still renders in software because of the llvmpipe override in `/etc/ztos/session.env` (needs root).

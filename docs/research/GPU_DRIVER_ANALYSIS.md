@@ -86,3 +86,6 @@ Yama (kernel/0038): GPU SMMU'da GR0'a dokunma yok, ilk `pre_gpu_power` öncesi d
 - `debugfs dri/1/gpu`: `revision 430`, `rbbm-status 0x1`, ring `iova 0x2001000`, `rptr == wptr == 18` → CP başlangıç komutlarını işledi (hw_init tamam, SMMU çevirisi çalışıyor).
 - Kalan: GPU iş yükü (Mesa freedreno a4xx) denemesi, soğutma cihazı hatası (`Couldn't register GPU cooling device`), devfreq 27 MHz'de boşta, `vdd/vddcx` regülatörleri dummy.
 - Ders: 8. bölümdeki tahmin doğru çıktı; sorun güç oyları değil, TZ'ye ait GR0'a erken dokunmaktı.
+
+### 9a. Kullanıcı alanı (ztOS kökü, `zerone`, Mesa 26.2.6)
+`MESA_LOADER_DRIVER_OVERRIDE=msm` + GBM/EGL (`/dev/dri/renderD128`): `VENDOR freedreno`, `RENDERER FD430`, `OpenGL ES 3.0`; FBO tam, `glClear` + `glReadPixels` = (255,0,128,255), GL hatası yok, çekirdekte hang/fault yok. Mesa GPU yolu çalışıyor; ztMETRO hâlâ `/etc/ztos/session.env`'deki llvmpipe zorlaması yüzünden yazılımda (root ister).
