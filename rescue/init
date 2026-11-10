@@ -115,6 +115,38 @@ if [ -n "$UDC" ]; then
   ifconfig usb0 192.168.77.2 netmask 255.255.255.0 up 2>/dev/null && log "usb0 = 192.168.77.2/24 (host: 192.168.77.1)"
 fi
 
+# --- ztOS: switch to the root on the SD card when the kernel command line has ztos.root= ---
+# e.g. ztos.root=LABEL=ZR_ARCH. The USB gadget above stays configured across switch_root (it is kernel
+# state), and ztOS's systemd-networkd gives usb0 the same 192.168.77.2. If the root is missing or has no
+# systemd, the rescue system carries on as usual.
+ZROOT=$(sed -n 's/.*ztos\.root=\([^ ]*\).*/\1/p' /proc/cmdline)
+if [ -n "$ZROOT" ]; then
+  dev=""; i=0
+  while [ $i -lt 40 ]; do
+    case "$ZROOT" in /dev/*) dev=$ZROOT ;; *) dev=$(findfs "$ZROOT" 2>/dev/null) ;; esac
+    [ -b "$dev" ] && break
+    sleep 0.25; i=$((i+1))
+  done
+  mkdir -p /newroot
+  if [ -b "$dev" ] && mount -t ext4 -o rw,noatime "$dev" /newroot && [ -x /newroot/usr/lib/systemd/systemd ]; then
+    log "switching to the ztOS root on $dev ($ZROOT)"
+    dmesg > /newroot/var/log/ztos950xl-initramfs.txt 2>/dev/null
+    for p in $(cat /tmp/logpids 2>/dev/null); do kill $p 2>/dev/null; done
+    sleep 1; sync
+    umount /mnt/sd 2>/dev/null || mount -o remount,ro /mnt/sd 2>/dev/null
+    for m in /sys/kernel/tracing /sys/kernel/debug /sys/fs/pstore /sys/kernel/config /dev/pts; do
+      umount "$m" 2>/dev/null
+    done
+    mount --move /dev /newroot/dev
+    mount --move /run /newroot/run
+    mount --move /proc /newroot/proc
+    mount --move /sys /newroot/sys
+    exec switch_root /newroot /usr/lib/systemd/systemd
+  fi
+  log "ztOS root $ZROOT not usable (device '$dev'); staying in the rescue system"
+  umount /newroot 2>/dev/null
+fi
+
 # --- shell on the ACM serial port (/dev/ttyGS0) ---
 if [ -e /dev/ttyGS0 ]; then
   (while true; do setsid sh -c 'exec sh </dev/ttyGS0 >/dev/ttyGS0 2>&1' ; sleep 1; done) &
