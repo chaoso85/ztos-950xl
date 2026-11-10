@@ -1,0 +1,104 @@
+From efbde88680523dc7adca7e37bbbc9d18d5a01fd6 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 00:42:17 +0000
+Subject: [PATCH] iommu/qcom: give TZ a no-map reserved region for the secure
+ page-table pool
+
+Part of the reference project used: Sony msm8994 3.10 drivers/iommu/msm_iommu_sec.c msm_iommu_sec_ptbl_init()
+(and its msm-3.10 arm64 DMA_ATTR_NO_KERNEL_MAPPING handling, which removes the buffer from the linear map).
+Before: 0027 handed TZ a dma_alloc_attrs() buffer that stays in the kernel linear map. TZ XPU-protects that
+pool, so a speculative CPU access to it can raise an XPU violation; boots reset (PS_HOLD) right after
+'iommu sec: pgtable size: 151552', nondeterministically. Now the MDP SMMU uses a 256 KiB no-map
+reserved-memory region (memory-region) when the DT provides one.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ .../msm8994-msft-lumia-octagon-cityman.dts    | 21 ++++++++++++++
+ drivers/iommu/arm/arm-smmu/qcom_iommu.c       | 28 +++++++++++++++++++
+ 2 files changed, 49 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
+index 4d538ad3933..8408215900a 100644
+--- a/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
++++ b/arch/arm64/boot/dts/qcom/msm8994-msft-lumia-octagon-cityman.dts
+@@ -195,3 +195,24 @@ &dsi1_phy {
+ 
+ 	qcom,dsi-phy-regulator-ldo-mode;
+ };
++
++/*
++ * Pool handed to TZ by IOMMU_SECURE_PTBL_INIT (MDP SMMU, 0x25000 bytes requested). TZ
++ * XPU-protects it, so it must not be in the kernel linear map (msm-3.10 removed the
++ * DMA buffer from the linear map; mainline does not).
++ */
++/ {
++	reserved-memory {
++		iommu_sec_ptbl_mem: iommu-sec-ptbl {
++			size = <0x0 0x40000>;
++			alignment = <0x0 0x10000>;
++			alloc-ranges = <0x0 0x10000000 0x0 0x70000000>;
++			no-map;
++		};
++	};
++};
++
++&mdp_iommu {
++	memory-region = <&iommu_sec_ptbl_mem>;
++};
++
+diff --git a/drivers/iommu/arm/arm-smmu/qcom_iommu.c b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+index 5243dab38b9..9b5afff349d 100644
+--- a/drivers/iommu/arm/arm-smmu/qcom_iommu.c
++++ b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+@@ -23,6 +23,7 @@
+ #include <linux/mutex.h>
+ #include <linux/of.h>
+ #include <linux/of_platform.h>
++#include <linux/of_reserved_mem.h>
+ #include <linux/platform_device.h>
+ #include <linux/pm.h>
+ #include <linux/pm_runtime.h>
+@@ -934,6 +935,7 @@ static int qcom_iommu_sec_ptbl_init(struct device *dev)
+ 	dma_addr_t paddr;
+ 	unsigned long attrs;
+ 	static bool allocated = false;
++	struct device_node *rmem_np;
+ 	int ret;
+ 
+ 	if (allocated)
+@@ -948,6 +950,32 @@ static int qcom_iommu_sec_ptbl_init(struct device *dev)
+ 
+ 	dev_info(dev, "iommu sec: pgtable size: %zu\n", psize);
+ 
++	/*
++	 * TZ XPU-protects the pool it is given. A dma_alloc_attrs() buffer stays in the
++	 * kernel linear map (unlike msm-3.10, where DMA_ATTR_NO_KERNEL_MAPPING removed it),
++	 * so a speculative CPU access to it can raise an XPU violation, which on MSM8994
++	 * resets the SoC. Prefer a no-map reserved-memory region when the DT provides one.
++	 */
++	rmem_np = of_parse_phandle(dev->of_node, "memory-region", 0);
++	if (rmem_np) {
++		struct reserved_mem *rmem = of_reserved_mem_lookup(rmem_np);
++
++		of_node_put(rmem_np);
++		if (!rmem || rmem->size < psize) {
++			dev_err(dev, "secure pgtable memory-region missing or too small\n");
++			return -EINVAL;
++		}
++		dev_info(dev, "iommu sec: pgtable at %pa (no-map reserved)\n", &rmem->base);
++		ret = qcom_scm_iommu_secure_ptbl_init(rmem->base, psize, spare);
++		if (ret) {
++			dev_err(dev, "failed to init iommu pgtable (%d)\n", ret);
++			return ret;
++		}
++		dev_info(dev, "iommu sec: pgtable init done\n");
++		allocated = true;
++		return 0;
++	}
++
+ 	attrs = DMA_ATTR_NO_KERNEL_MAPPING;
+ 
+ 	cpu_addr = dma_alloc_attrs(dev, psize, &paddr, GFP_KERNEL, attrs);
+-- 
+2.43.0
+

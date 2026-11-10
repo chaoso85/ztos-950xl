@@ -270,3 +270,14 @@ interleaved` (25.439), `probe of fdd00000.sram with driver ocmem returned 0` (25
 line after ocmem is the MDP SMMU `iommu sec: pgtable size: 151552`. OCMEM is used only by the (disabled) GPU but
 its probe enables VDD_GFX, sets the RPM OCMEMGX clock and does a TZ restore_sec_cfg, so 0028 disables it.
 Test: several consecutive boots of the FULL DT entry; DTB sha 957c0aaec820.
+
+## 18. 0028 result, 0029: secure page-table pool out of the linear map
+
+0028 (OCMEM off): 2/2 boots reset. Video 20261110_033529: last lines `mmcc ... returned 0` (24.316),
+`qcom-iommu fd9cc000.iommu: iommu sec: pgtable size: 151552` (24.331), `s5: Bringing 0uV into 2150000uV`
+(24.339), then reset. So OCMEM was not the cause; the reset follows the TZ secure page-table setup.
+Sony msm_iommu_sec_ptbl_init() hands TZ a DMA_ATTR_NO_KERNEL_MAPPING buffer; on msm-3.10 arm64 that removes
+it from the linear map. Mainline keeps it mapped, and TZ XPU-protects it, so a speculative access can
+trigger an XPU violation -> reset, nondeterministically. 0029 gives the MDP SMMU a 256 KiB no-map
+reserved-memory region (Image cb2f50d4f39f, DTB 86a0723a9e62). Not yet done: IOMMU_SET_CP_POOL_SIZE
+(downstream calls it first when MP version >= 1.1.1).
