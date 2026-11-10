@@ -31,3 +31,15 @@ Sıradaki iş: mainline `clk-alpha-pll` + özel mux/div saat sağlayıcısı + `
 - CPU hız bin'ini bulmak için ztOS içinden `/dev/mem` ile `0xfc4b80b0` ve `0xfc4bc000+0x1f0..` (QFPROM/CPR sigorta alanı) okundu. Telefon anında resetlendi (SSH "closed by remote host", uptime 0). ext4 `recovery complete`, veri kaybı yok. **Ders: QFPROM kullanıcı alanından /dev/mem ile okunmaz**; hız bin'i kernel içinden `qcom,qfprom` nvmem sürücüsüyle (TZ'ye uygun yoldan) okunmalı.
 - GRUB `save_env` FAT üzerinde yazamadı: reset sonrası `next_entry=2` yerinde duruyordu ve telefon yine ztOS ile açıldı. Tek seferlik giriş mekanizması çalışmıyor; ztOS şu an her açılışta varsayılan. Rescue girdileri menüde (7 sn) elle seçilir. Düzeltme için `grub.cfg`'de `set default=2` kullanıp `grubenv` mantığı kaldırılacak.
 - ztOS'ta `zerone` için `sudo` parolası artık `toor` değil (`auth could not identify password`); Welcome uygulaması çalıştırıldıktan sonra değişmiş olabilir.
+
+## 28. A57 clock raised 381 -> 765 MHz (plain writel, no SCM)
+
+- Earlier hangs of the A57 mux write were NOT a TZ/XPU protection: my "safe" source was lfmux sel 1,
+  which is PLL1 (PLLA) main and is switched off by the bootloader, so the cluster lost its clock (PS_HOLD reset).
+- Reference: downstream `drivers/clk/qcom/clock-cpu-8994.c`, `cpu_clock_8994_init_a57_v2()` (the qcom,cpu-clock-8992 / 8994-v2 path)
+  writes mux 0x54 with plain `writel_relaxed(0x6)` = lfmux sel 3 = AUX / GPLL0 600 MHz. `sanity_check_clock_tree()` documents
+  PLL USER_CTL bits[9:8]: 1 = div 2, 3 = div 4, rate = L * 19.2 MHz / div.
+- Working sequence (rescue FULL DT, tools/ztcpu.c): S11 900 -> 1000 mV over SPMI; mux sel 3 (GPLL0); PLL f9016000 USER_CTL 0x309 -> 0x109; mux sel 2 (PLL0 main).
+- SCM `qcom_scm_io_readl` of these registers returns -22 on this TZ; not needed.
+- Measured with cpubench: cpu4/cpu5 ~765 MHz (was ~381), L1 sweep 2574 MB/s (was ~1290 est.), DRAM stride 2690 MB/s.
+- Next: the same on A53 (above 768 MHz needs 1.18 V + mem-acc), CCI/BIMC votes, then a real mainline-style cpufreq driver.
