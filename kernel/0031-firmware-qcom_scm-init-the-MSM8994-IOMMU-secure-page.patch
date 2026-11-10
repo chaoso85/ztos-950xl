@@ -1,0 +1,126 @@
+From 74688f687b9d9b197ad26e3a27846874037d9c19 Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 01:12:31 +0000
+Subject: [PATCH] firmware: qcom_scm: init the MSM8994 IOMMU secure page-table
+ pool early, at SCM probe
+
+Part of the reference project used: Sony msm8994 3.10 drivers/iommu/msm_iommu_sec.c msm_iommu_sec_init() ->
+msm_iommu_sec_ptbl_init(), which runs once at subsys_initcall with a dma_alloc_attrs pool.
+Before: qcom_iommu did IOMMU_SECURE_PTBL_INIT from the MDP SMMU probe during the ~24 s deferred-probe burst;
+on most boots the SoC reset inside that call (last line 'iommu sec: pgtable at ...', PMIC poff PS_HOLD), even
+with the display driver not loaded. The same call from a test module on an idle system returned 0. Now SCM
+does it at probe (~0.45 s) and qcom_iommu skips its own init when that succeeded.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ drivers/firmware/qcom/qcom_scm.c        | 60 +++++++++++++++++++++++++
+ drivers/iommu/arm/arm-smmu/qcom_iommu.c |  2 +-
+ include/linux/firmware/qcom/qcom_scm.h  |  1 +
+ 3 files changed, 62 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/firmware/qcom/qcom_scm.c b/drivers/firmware/qcom/qcom_scm.c
+index e1f30ee03e0..6daee41a1a1 100644
+--- a/drivers/firmware/qcom/qcom_scm.c
++++ b/drivers/firmware/qcom/qcom_scm.c
+@@ -1303,6 +1303,64 @@ int qcom_scm_iommu_secure_ptbl_init(u64 addr, u32 size, u32 spare)
+ }
+ EXPORT_SYMBOL_GPL(qcom_scm_iommu_secure_ptbl_init);
+ 
++static bool qcom_scm_iommu_sec_ptbl_done;
++
++/**
++ * qcom_scm_iommu_secure_ptbl_inited() - whether SCM already gave TZ the IOMMU secure page-table pool
++ */
++bool qcom_scm_iommu_secure_ptbl_inited(void)
++{
++	return READ_ONCE(qcom_scm_iommu_sec_ptbl_done);
++}
++EXPORT_SYMBOL_GPL(qcom_scm_iommu_secure_ptbl_inited);
++
++/*
++ * MSM8994/MSM8992: hand TZ its IOMMU secure page-table pool once, early, while the system is quiet.
++ * msm-3.10 does this from msm_iommu_sec_init() at subsys_initcall. Doing it later from the SMMU probe
++ * (during the deferred-probe burst at ~24 s) made IOMMU_SECURE_PTBL_INIT reset the SoC on most boots,
++ * while the very same call from an idle system always returned 0.
++ */
++static void qcom_scm_early_iommu_sec_ptbl_init(struct qcom_scm *scm)
++{
++	struct device_node *np;
++	size_t psize = 0;
++	dma_addr_t paddr;
++	void *cpu_addr;
++	int ret;
++
++	if (!of_machine_is_compatible("qcom,msm8994") &&
++	    !of_machine_is_compatible("qcom,msm8992"))
++		return;
++
++	for_each_node_with_property(np, "qcom,iommu-secure-id")
++		if (of_device_is_available(np))
++			break;
++	if (!np)
++		return;
++	of_node_put(np);
++
++	ret = qcom_scm_iommu_secure_ptbl_size(0, &psize);
++	if (ret || !psize) {
++		dev_err(scm->dev, "iommu sec: PTBL_SIZE failed (%d)\n", ret);
++		return;
++	}
++	cpu_addr = dma_alloc_attrs(scm->dev, psize, &paddr, GFP_KERNEL,
++				   DMA_ATTR_NO_KERNEL_MAPPING);
++	if (!cpu_addr) {
++		dev_err(scm->dev, "iommu sec: cannot allocate %zu bytes\n", psize);
++		return;
++	}
++	dev_info(scm->dev, "iommu sec: early pgtable init, %zu bytes at %pad\n", psize, &paddr);
++	ret = qcom_scm_iommu_secure_ptbl_init(paddr, psize, 0);
++	if (ret) {
++		dev_err(scm->dev, "iommu sec: PTBL_INIT failed (%d)\n", ret);
++		dma_free_attrs(scm->dev, psize, cpu_addr, paddr, DMA_ATTR_NO_KERNEL_MAPPING);
++		return;
++	}
++	dev_info(scm->dev, "iommu sec: early pgtable init done\n");
++	WRITE_ONCE(qcom_scm_iommu_sec_ptbl_done, true);
++}
++
+ int qcom_scm_iommu_set_cp_pool_size(u32 spare, u32 size)
+ {
+ 	struct qcom_scm_desc desc = {
+@@ -2980,6 +3038,8 @@ static int qcom_scm_probe(struct platform_device *pdev)
+ 	/* Initialize the QTEE object interface. */
+ 	qcom_scm_qtee_init(scm);
+ 
++	qcom_scm_early_iommu_sec_ptbl_init(scm);
++
+ 	/* Initialize the Gunyah watchdog platform device. */
+ 	qcom_scm_gunyah_wdt_init(scm);
+ 
+diff --git a/drivers/iommu/arm/arm-smmu/qcom_iommu.c b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+index 5243dab38b9..d48aded8c47 100644
+--- a/drivers/iommu/arm/arm-smmu/qcom_iommu.c
++++ b/drivers/iommu/arm/arm-smmu/qcom_iommu.c
+@@ -936,7 +936,7 @@ static int qcom_iommu_sec_ptbl_init(struct device *dev)
+ 	static bool allocated = false;
+ 	int ret;
+ 
+-	if (allocated)
++	if (allocated || qcom_scm_iommu_secure_ptbl_inited())
+ 		return 0;
+ 
+ 	ret = qcom_scm_iommu_secure_ptbl_size(spare, &psize);
+diff --git a/include/linux/firmware/qcom/qcom_scm.h b/include/linux/firmware/qcom/qcom_scm.h
+index 4897ae3e462..ea89b57d928 100644
+--- a/include/linux/firmware/qcom/qcom_scm.h
++++ b/include/linux/firmware/qcom/qcom_scm.h
+@@ -105,6 +105,7 @@ bool qcom_scm_set_gpu_smmu_aperture_is_available(void);
+ int qcom_scm_iommu_secure_ptbl_size(u32 spare, size_t *size);
+ int qcom_scm_iommu_secure_ptbl_init(u64 addr, u32 size, u32 spare);
+ int qcom_scm_iommu_set_cp_pool_size(u32 spare, u32 size);
++bool qcom_scm_iommu_secure_ptbl_inited(void);
+ int qcom_scm_mem_protect_video_var(u32 cp_start, u32 cp_size,
+ 				   u32 cp_nonpixel_start, u32 cp_nonpixel_size);
+ int qcom_scm_assign_mem(phys_addr_t mem_addr, size_t mem_sz, u64 *src,
+-- 
+2.43.0
+

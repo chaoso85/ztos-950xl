@@ -281,3 +281,15 @@ it from the linear map. Mainline keeps it mapped, and TZ XPU-protects it, so a s
 trigger an XPU violation -> reset, nondeterministically. 0029 gives the MDP SMMU a 256 KiB no-map
 reserved-memory region (Image cb2f50d4f39f, DTB 86a0723a9e62). Not yet done: IOMMU_SET_CP_POOL_SIZE
 (downstream calls it first when MP version >= 1.1.1).
+
+## 19. Reset located: inside IOMMU_SECURE_PTBL_INIT during the deferred-probe burst (0030/0031)
+
+- 0029 (no-map pool) still reset. pstore after the reset was empty (RAM lost on the PS_HOLD reset).
+- DRM_MSM and the sergej panel built as modules (only the MDP SMMU probes at boot). Video 20261110_040506:
+  last line `iommu sec: pgtable at 0x5ff60000 (no-map reserved)` (23.834), no `pgtable init done` -> the
+  SoC resets inside the TZ call, display driver not even loaded.
+- Test module rescue/tools/ztsec.c on the SAFE boot (idle system, venus/camss/oxili GDSCs off, MDSS on):
+  PTBL_SIZE 151552, dma pool 0xdd100000, PTBL_INIT ret 0, no reset. So neither the GDSC state nor the pool
+  type is the cause; the moment is (msm-3.10 does it at subsys_initcall).
+- 0030 reverts 0029; 0031 makes qcom_scm do the pool init at its probe (~0.45 s) on msm8994/8992 and
+  qcom_iommu skip its own. Image 3773b07eaa25 (modules rebuilt for the new vermagic).
