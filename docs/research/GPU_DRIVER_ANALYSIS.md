@@ -36,3 +36,16 @@ Amaç: GPU'yu (Adreno 430) açarken SoC'yi resetleyen/kilitleyen SMMU ataması s
 2. `ztdt.ko` ile çalışma zamanında yalnızca GX+CX aç, `GDSCR` durum bitlerini oku (SSH, SMMU'ya dokunmadan).
 3. Başarılıysa GPU SMMU'yu (TZ'siz) bağla; sonra `msm` GPU düğümünü; `kmscube`/`glmark2-es2`.
 4. Her adımdan önce telefon yeniden başlatma amacı kullanıcıya söylenecek.
+
+## 6. Donanım deneyleri (2026-11-10, rescue, `ztgpupwr.ko` / `ztgfxrail.ko`)
+
+| Deney | Sonuç |
+|---|---|
+| GX + CX GDSC elle aç (fork'un `msm8994_oxili_pre_gpu_power`) | Çalışır: GDSCR `a0282000` (PWR_ON, SW_COLLAPSE=0), telefon yaşıyor |
+| + üç saat (gfx3d 300 MHz, cx_ahb, rbbmtimer) | CBCR'lerde CLK_OFF temiz (`0x4028=00006ff1`, `0x403c=20008001`, `0x40b0=1`) |
+| + `rpmpd gfx` köşe oyu (durum 3 = svs_soc) | `gfx` domain açık, PM8994/pmi8994 S2 kullanımda |
+| pmi8994 S2/S3 (VDD_GFX) SPMI dökümü | Açılışta zaten etkin (`enable 80`, `status1 81`): ray eksikliği sebep değil |
+| GPU SMMU `ID0..2` oku (`smmu=1`) | **CPU donar** (reset değil, ekran ~183 sn'de kalır, USB ölür) |
+| GPU `0xfdb00000` reg0..3 oku (`gpu=1`), ray oyu dahil | **CPU donar** |
+
+Sonuç: Windows/downstream'de belgelenen güç, ray ve saat önkoşullarının hepsi sağlanıyor, ama hem GPU hem GPU SMMU kayıt alanına ilk erişim yine donuyor (cevap vermeyen bir slave). Elenmeyen adaylar: (a) Windows'taki `APPSS→GFX3D_CFG` yapılandırma yolu oyu (mainline interconnect'te karşılığı yok: `slv_cnoc_mnoc_mmss_cfg`/`slv_mmss_clk_xpu_cfg` var ama GFX3D_CFG düğümü yok), (b) XPU/MPU koruması (`slv_mnoc_mpu_cfg`; doğrulanmadı, daha önce bir reset yanlışlıkla XPU'ya yorulmuştu), (c) `qcdxkm8994.sys`'in ilk kayıt okumasından önce yaptığı bir adım (TZ/SMMU init ya da GPU bloğu reset'i). Sonraki adım canlı deneme değil, `qcdxkm8994.sys` (WOA ARM64 sürümü) içinde ilk RBBM erişimine kadarki kodun çevrimdışı çözümlenmesi.

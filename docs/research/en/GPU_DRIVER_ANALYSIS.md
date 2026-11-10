@@ -36,3 +36,16 @@ Goal: compare the power/clock sequences of three sources to fix the GPU SMMU att
 2. With `ztdt.ko`, power only GX+CX at runtime and read the `GDSCR` status bits (over SSH, without touching the SMMU).
 3. If that works, attach the GPU SMMU (no TZ); then the `msm` GPU node; `kmscube`/`glmark2-es2`.
 4. Before every phone reboot the user is told why.
+
+## 6. Hardware experiments (2026-11-10, rescue, `ztgpupwr.ko` / `ztgfxrail.ko`)
+
+| Experiment | Result |
+|---|---|
+| Power GX + CX GDSC by hand (the fork's `msm8994_oxili_pre_gpu_power`) | Works: GDSCR `a0282000` (PWR_ON, SW_COLLAPSE=0), phone alive |
+| + the three clocks (gfx3d 300 MHz, cx_ahb, rbbmtimer) | CLK_OFF clear in the CBCRs (`0x4028=00006ff1`, `0x403c=20008001`, `0x40b0=1`) |
+| + `rpmpd gfx` corner vote (state 3 = svs_soc) | `gfx` domain on, PM8994/pmi8994 S2 in use |
+| pmi8994 S2/S3 (VDD_GFX) SPMI dump | Already enabled at boot (`enable 80`, `status1 81`): the rail is not the cause |
+| Read GPU SMMU `ID0..2` (`smmu=1`) | **CPU hangs** (not a reset: screen stops at ~183 s, USB dies) |
+| Read GPU `0xfdb00000` reg0..3 (`gpu=1`), rail vote included | **CPU hangs** |
+
+Conclusion: every power, rail and clock precondition documented for Windows/downstream is met, yet the first access to both the GPU and the GPU SMMU register spaces still hangs (a slave that never answers). Candidates not yet eliminated: (a) the Windows `APPSS→GFX3D_CFG` configuration-path bus vote (mainline interconnect has no equivalent: `slv_cnoc_mnoc_mmss_cfg`/`slv_mmss_clk_xpu_cfg` exist but no GFX3D_CFG node), (b) XPU/MPU protection (`slv_mnoc_mpu_cfg`; unverified, and an earlier reset was wrongly blamed on XPU), (c) a step `qcdxkm8994.sys` takes before its first register read (TZ/SMMU init or a GPU block reset). Next step is not another live test but offline analysis of the code in `qcdxkm8994.sys` (the WOA ARM64 build) up to the first RBBM access.
