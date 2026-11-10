@@ -21,7 +21,8 @@ Legend: **[ ]** open · **[x]** done · **(!)** blocks first boot
 - [x] NFC (pn547) DT'de kapatıldı: arka kapak yokken polarite tespiti 33 sn bloklıyordu. Kapak takılınca `status = "disabled"` kaldırılacak.
 - [ ] `psci-cpuidle` -ENODEV: CPU idle durumları yok (güç tüketimi).
 - [x] (DT'de kapatıldı/düzeltildi, patch 0019; denenmedi) DT'de olmayan/yanlış donanım (ad7147 IRQ sözdizimi hatası da düzeltildi): si470x (5-0011), fan53555 (5-006c), ad714x (4-002c, IRQ yok), mpu6050 (2-0068), ccs sensörleri (6-0020, 6-006c, 7-0020); tsl2772 supply'ları; `i2c_qup f9967000` tx DMA kanalı.
-- [ ] Gecikmeler: fuel gauge probe açılışı ~18 sn bekletiyor (2.3 → 20.4 s, 2026-11-10); `spmi-pmic-arb.c:786` WARNING (`pmic_arb_chained_irq`, eski adıyla spurious spmi irq apid=158) her açılışta.
+- [x] Fuel gauge gecikmesi: 0036 ile çözüldü (init iş kuyruğunda, tek MEMIF izni; init 3.05 s).
+- [ ] Her açılışta: `spmi-pmic-arb.c:786` WARNING (`pmic_arb_chained_irq`, eski adıyla spurious spmi irq apid=158) her açılışta.
 - [x] `FW_LOADER_USER_HELPER(_FALLBACK)` kapatıldı: eksik firmware artık 60 sn beklemiyor (denenmedi).
 - [ ] Bluetooth ROME/QCA6390 0xfc00 timeout; ses: ADSP firmware (`qcadsp8994.mbn`) ve `regulatory.db` yok.
 - [x] `keep_bootcon` olmadan zamanlaması gerçekçi günlük alındı (2026-11-09'dan beri her açılış).

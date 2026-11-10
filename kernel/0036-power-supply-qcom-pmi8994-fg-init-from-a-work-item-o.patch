@@ -1,0 +1,178 @@
+From 2d33f5c499978a3c66c5f3f63ecee4e2a0d171ec Mon Sep 17 00:00:00 2001
+From: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 02:14:26 +0000
+Subject: [PATCH] power: supply: qcom-pmi8994-fg: init from a work item, one
+ MEMIF grant for the whole init
+
+Part of the reference project used: downstream 3.10 drivers/power/qpnp-fg.c (giannoccarol/android_kernel_mmo_msm8994
+lineage-23-cityman, same file in LineageOS android_kernel_sony_msm8994): delayed_init_work() runs fg_hw_init() from
+a work item after probe, and fg_mem_lock()/fg_mem_release() keep the SRAM (MEMIF) access grant for the whole init.
+Before: the battery ID read and every board setting (thermal coefficients, JEITA, cutoff, termination currents,
+resume SoC, two masked writes) each requested and released MEMIF access inline in probe; every grant waits for an
+FG cycle, so the probe blocked boot for ~19.6 s (2.3 -> 20.4 s on cityman). Now probe only checks the peripherals
+and schedules the init; the init holds one grant and registers the battery when done.
+
+Signed-off-by: chaoso85 <216391968+chaoso85@users.noreply.github.com>
+---
+ drivers/power/supply/qcom-pmi8994-fg.c | 99 ++++++++++++++++++++------
+ 1 file changed, 77 insertions(+), 22 deletions(-)
+
+diff --git a/drivers/power/supply/qcom-pmi8994-fg.c b/drivers/power/supply/qcom-pmi8994-fg.c
+index 42e43beef35..ba1dd36d049 100644
+--- a/drivers/power/supply/qcom-pmi8994-fg.c
++++ b/drivers/power/supply/qcom-pmi8994-fg.c
+@@ -19,6 +19,7 @@
+ #include <linux/regmap.h>
+ #include <linux/slab.h>
+ #include <linux/types.h>
++#include <linux/workqueue.h>
+ 
+ #define FG_SOC_BASE			0x4000
+ #define FG_BATT_BASE			0x4100
+@@ -107,6 +108,12 @@ struct pmi8994_fg {
+ 	struct regmap *regmap;
+ 	struct power_supply *psy;
+ 	struct mutex lock;
++	/*
++	 * >0 while a batch of SRAM accesses keeps the MEMIF grant (downstream qpnp-fg.c
++	 * fg_mem_lock()); each new grant costs up to one FG cycle (~1.5 s).
++	 */
++	int hold;
++	struct work_struct init_work;
+ 	u32 soc_base;
+ 	u32 batt_base;
+ 	u32 mem_base;
+@@ -193,6 +200,19 @@ static int fg_release_access(struct pmi8994_fg *fg)
+ 			       RIF_MEM_ACCESS_REQ, 0);
+ }
+ 
++static void fg_mem_hold(struct pmi8994_fg *fg)
++{
++	guard(mutex)(&fg->lock);
++	fg->hold++;
++}
++
++static void fg_mem_unhold(struct pmi8994_fg *fg)
++{
++	guard(mutex)(&fg->lock);
++	if (--fg->hold == 0)
++		fg_release_access(fg);
++}
++
+ static int fg_set_ram_addr(struct pmi8994_fg *fg, u16 address)
+ {
+ 	u8 buf[2] = { address & 0xff, address >> 8 };
+@@ -252,7 +272,8 @@ static int fg_mem_read(struct pmi8994_fg *fg, u16 address, int offset,
+ 	}
+ 
+ out:
+-	fg_release_access(fg);
++	if (!fg->hold)
++		fg_release_access(fg);
+ 	return rc;
+ }
+ 
+@@ -312,7 +333,8 @@ static int fg_mem_write(struct pmi8994_fg *fg, u16 address, int offset,
+ 	}
+ 
+ out:
+-	fg_release_access(fg);
++	if (!fg->hold)
++		fg_release_access(fg);
+ 	return rc;
+ }
+ 
+@@ -862,10 +884,51 @@ static int fg_setup_profile(struct pmi8994_fg *fg)
+ 	return fg_apply_board_settings(fg);
+ }
+ 
+-static int fg_probe(struct platform_device *pdev)
++static void fg_init_work(struct work_struct *work)
+ {
++	struct pmi8994_fg *fg = container_of(work, struct pmi8994_fg, init_work);
+ 	struct power_supply_config psy_cfg = {};
+ 	struct power_supply_battery_info *info;
++	unsigned long start = jiffies;
++	int rc;
++
++	/* one MEMIF grant for the whole init, as downstream fg_mem_lock() around fg_hw_init() */
++	fg_mem_hold(fg);
++	rc = fg_setup_profile(fg);
++	fg_mem_unhold(fg);
++	if (rc)
++		dev_err(fg->dev, "profile setup failed (%d)\n", rc);
++
++	psy_cfg.drv_data = fg;
++	psy_cfg.fwnode = dev_fwnode(fg->dev);
++	fg->psy = devm_power_supply_register(fg->dev, &fg_desc, &psy_cfg);
++	if (IS_ERR(fg->psy)) {
++		dev_err(fg->dev, "failed to register battery (%ld)\n", PTR_ERR(fg->psy));
++		fg->psy = NULL;
++		return;
++	}
++
++	if (!power_supply_get_battery_info(fg->psy, &info)) {
++		if (info->voltage_max_design_uv > 0)
++			fg->max_voltage_uv = info->voltage_max_design_uv;
++		if (info->charge_full_design_uah > 0)
++			fg->nom_cap_uah = info->charge_full_design_uah;
++		power_supply_put_battery_info(fg->psy, info);
++	}
++
++	dev_info(fg->dev, "battery registered, FG init took %u ms\n",
++		 jiffies_to_msecs(jiffies - start));
++}
++
++static void fg_cancel_init_work(void *data)
++{
++	struct pmi8994_fg *fg = data;
++
++	cancel_work_sync(&fg->init_work);
++}
++
++static int fg_probe(struct platform_device *pdev)
++{
+ 	struct pmi8994_fg *fg;
+ 	unsigned int type, subtype;
+ 	int rc;
+@@ -915,26 +978,18 @@ static int fg_probe(struct platform_device *pdev)
+ 				     "not FG MEMIF (type %02x subtype %02x)\n",
+ 				     type, subtype);
+ 
+-	rc = fg_setup_profile(fg);
+-	if (rc)
+-		return dev_err_probe(&pdev->dev, rc, "profile setup failed\n");
+-
+-	psy_cfg.drv_data = fg;
+-	psy_cfg.fwnode = dev_fwnode(&pdev->dev);
+-	fg->psy = devm_power_supply_register(&pdev->dev, &fg_desc, &psy_cfg);
+-	if (IS_ERR(fg->psy))
+-		return dev_err_probe(&pdev->dev, PTR_ERR(fg->psy),
+-				     "failed to register battery\n");
+-
+-	if (!power_supply_get_battery_info(fg->psy, &info)) {
+-		if (info->voltage_max_design_uv > 0)
+-			fg->max_voltage_uv = info->voltage_max_design_uv;
+-		if (info->charge_full_design_uah > 0)
+-			fg->nom_cap_uah = info->charge_full_design_uah;
+-		power_supply_put_battery_info(fg->psy, info);
+-	}
+-
+ 	platform_set_drvdata(pdev, fg);
++
++	/*
++	 * Battery ID, profile and board settings go through FG SRAM, where every MEMIF grant waits
++	 * for an FG cycle; done inline they blocked boot for ~18 s. As downstream qpnp-fg.c
++	 * (delayed_init_work), run them from a work item and register the battery after it.
++	 */
++	INIT_WORK(&fg->init_work, fg_init_work);
++	rc = devm_add_action_or_reset(&pdev->dev, fg_cancel_init_work, fg);
++	if (rc)
++		return rc;
++	schedule_work(&fg->init_work);
+ 	return 0;
+ }
+ 
+-- 
+2.43.0
+

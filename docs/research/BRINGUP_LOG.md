@@ -347,3 +347,13 @@ as it may still be working with phys addr" — 3.10'da `restore_sec_cfg` + BFB a
   (`pmic_arb_chained_irq`); Bluetooth QCA sürüm okuma zaman aşımı; `qcadsp8994.mbn` ve `regulatory.db` initramfs'te yok.
 - Yamalar: 0029/0030 (ekle + geri al) ve 0033 (geçici hata ayıklama) seride tarihçe olarak duruyor; temiz seriye
   indirilirken birleştirilecek.
+
+## 24. 2026-11-10: fuel gauge açılışı 19.6 s bekletiyordu → 0036
+
+- Neden: probe pil ID'sini okuyup FG SRAM'ine ~10 ayrı yazma (termal katsayılar, JEITA, cutoff, sonlandırma akımları,
+  resume SoC, iki maskeli yazma) yapıyordu; her biri MEMIF erişimini yeniden isteyip bir FG döngüsünü (~1.5–2 s) bekliyordu.
+- Referans: downstream `qpnp-fg.c` (giannoccarol `lineage-23-cityman`; LineageOS sony aynı): `delayed_init_work()` ile
+  `fg_hw_init()` probe'dan sonra iş kuyruğunda; `fg_mem_lock()/fg_mem_release()` init boyunca tek erişim izni.
+- 0036: probe yalnız çevre birimlerini doğrulayıp init'i iş kuyruğuna atıyor; init tek izinle yapılıp pil sonra kaydediliyor.
+- Sonuç (Image 791d69373911): `FG init took 1020 ms`, **init 22.5 s → 3.05 s**, USB/SSH 5.3 s, safe-reboot döngüsü
+  75 s → 45 s. `battery`: Charging, %58, 3.89 V, 92 mA, 41.5 °C, `microsoft_bvt4d_3340mah`.

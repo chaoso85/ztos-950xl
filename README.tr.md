@@ -54,7 +54,7 @@ Açıklama: ✅ telefonda çalışıyor · 🟡 kısmen çalışıyor / iş var 
 | GPU (Adreno 430) | 🔴 | DT'de kapalı (SMMU'su ve OCMEM ile birlikte): SMMU'su GX güçsüzken bağlanınca SoC reset/donma. Firmware `a420_pm4/pfp.fw` linux-firmware'den. |
 | Kamera | 🔴 | CAMSS ve VFE/Venus SMMU'ları aynı SMMU nedeniyle DT'de kapalı; CCI probe oluyor. CCS sürücüsü sensörlerle daha önce çalışmamıştı. |
 | USB gadget (kurtarma/SSH) | ✅ | DWC3 + HS PHY (TCSR yönlendirme + LK QSCRATCH değerleri). Windows ACM + RNDIS görüyor, SSH çalışıyor. |
-| Şarj / fuel gauge | 🟡 | SMBCHG ve PMI8994 FG probe oluyor (pil ID okunuyor); FG probe açılışı ~18 sn bekletiyor. |
+| Şarj / fuel gauge | 🟡 | SMBCHG ve PMI8994 FG probe oluyor (pil ID okunuyor); init arka planda (tek SRAM izni, ~1 sn); kapasite, gerilim, akım ve sıcaklık doğru okunuyor. |
 | Wi-Fi / Bluetooth | 🔴 | PCIe1 (Wi-Fi) DT'ye bağlı değil; LineageOS cityman portunda `GCC_PCIE_1_BCR` reset'i ve Android QCA6174 `qwlan30.bin` gerekiyor. BT sürüm okuması zaman aşımı veriyor. |
 | Ses | 🟡 | Ses kartı henüz yok: `msm-snd` ertelenmiş. İmzalı ADSP imajı orijinal FFU'nun kendi `System32\qcadsp8994.mbn` dosyası (LineageOS cityman portundakiyle aynı hash); kullanıcının kendi telefonundan alınmalı. |
 | Modem / SIM | 🔴 | ADSP yükleniyor, modem yüklenmiyor (upstream notlarına göre). |
@@ -68,7 +68,8 @@ Açıklama: ✅ telefonda çalışıyor · 🟡 kısmen çalışıyor / iş var 
 - [x] `usb3` + UC120'yi etkinleştir → USB gadget kurtarma kabuğu (SSH çalışıyor)
 - [x] SD karttan ilk cihaz üstü açılış (efifb konsolu)
 - [x] Ekran: msm DRM ile Sergej paneli, açılış SMMU reset'i çözüldü
-- [ ] Açılış süresi (fuel gauge), kalan ekran uyarıları
+- [x] Açılış süresi: init ~3 sn (fuel gauge init açılış yolundan çıkarıldı)
+- [ ] Kalan ekran uyarıları
 - [ ] GPU: SMMU'dan önce güç sırası, ardından `kmscube` / `glmark2-es2`
 - [ ] ztOS GSI rootfs + `ztconflo` `uefi-esp` flash yöntemi + ztOSIAL manifest
 - [ ] Wi-Fi, ses, şarj, sensörler
@@ -78,7 +79,7 @@ Açıklama: ✅ telefonda çalışıyor · 🟡 kısmen çalışıyor / iş var 
 ## Depo yapısı
 
 ```
-kernel/            Android4Lumia950/linux master üstüne yama serisi 0001-0035 (0029/0030 ekle-geri al, 0033 geçici hata ayıklama; tarihçe olarak duruyor), kernel .config, derlenmiş DTB'ler
+kernel/            Android4Lumia950/linux master üstüne yama serisi 0001-0036 (0029/0030 ekle-geri al, 0033 geçici hata ayıklama; tarihçe olarak duruyor), kernel .config, derlenmiş DTB'ler
 rescue/            Kurtarma initramfs'i (init, USB gadget, SSH, SD günlükçü), GRUB menüsü (varsayılan FULL DT, ikinci SAFE DT), SD/ESP betikleri
 rescue/tools/      Hata ayıklama modülleri: ztdt.c (DT düğümünü çalışma anında açar), ztsec.c (TZ güvenli sayfa tablosu SCM çağrıları)
 docs/research/     Bulgular (donanım boşlukları, GPU/kamera raporu, çatal analizi, ACPI cihaz haritası, kamera ayarları)

@@ -54,7 +54,7 @@ Legend: ✅ works on the phone · 🟡 partly works / needs work · 🔴 not wor
 | GPU (Adreno 430) | 🔴 | Disabled in DT (with its SMMU and OCMEM): attaching its SMMU with GX unpowered reset or hung the SoC. Firmware `a420_pm4/pfp.fw` comes from linux-firmware. |
 | Camera | 🔴 | CAMSS and the VFE/Venus SMMUs are disabled in DT for the same SMMU reason; CCI probes. The CCS driver did not work with the sensors before. |
 | USB gadget (rescue/SSH) | ✅ | DWC3 + HS PHY (TCSR routing + LK QSCRATCH values). Windows sees ACM + RNDIS, SSH works. |
-| Charger / fuel gauge | 🟡 | SMBCHG and PMI8994 FG probe (battery ID is read); the FG probe blocks boot for ~18 s. |
+| Charger / fuel gauge | 🟡 | SMBCHG and PMI8994 FG probe (battery ID is read); init runs in the background (one SRAM grant, ~1 s); capacity, voltage, current and temperature read correctly. |
 | Wi-Fi / Bluetooth | 🔴 | PCIe1 (Wi-Fi) not wired in DT; the LineageOS cityman port needs a `GCC_PCIE_1_BCR` reset and the Android QCA6174 `qwlan30.bin`. BT version read times out. |
 | Audio | 🟡 | No sound card yet: `msm-snd` deferred. The signed ADSP image is the stock FFU's own `System32\qcadsp8994.mbn` (same hash as the LineageOS cityman port uses); it must be taken from the user's own phone. |
 | Modem / SIM | 🔴 | ADSP loads, modem does not (per upstream notes). |
@@ -68,7 +68,8 @@ Legend: ✅ works on the phone · 🟡 partly works / needs work · 🔴 not wor
 - [x] Enable `usb3` + UC120 → USB gadget rescue shell (SSH works)
 - [x] First on-device boot from SD (efifb console)
 - [x] Display: msm DRM on the Sergej panel, boot-time SMMU reset fixed
-- [ ] Boot time (fuel gauge), remaining display warnings
+- [x] Boot time: init at ~3 s (fuel gauge init moved off the boot path)
+- [ ] Remaining display warnings
 - [ ] GPU: power sequencing before its SMMU, then `kmscube` / `glmark2-es2`
 - [ ] ztOS GSI rootfs + `ztconflo` `uefi-esp` flash method + ztOSIAL manifest
 - [ ] Wi-Fi, audio, charging, sensors
@@ -78,7 +79,7 @@ Legend: ✅ works on the phone · 🟡 partly works / needs work · 🔴 not wor
 ## Repository layout
 
 ```
-kernel/            Patch series 0001-0035 on top of Android4Lumia950/linux master (0029/0030 add and revert, 0033 is a temporary debug patch kept as history), kernel .config, built DTBs
+kernel/            Patch series 0001-0036 on top of Android4Lumia950/linux master (0029/0030 add and revert, 0033 is a temporary debug patch kept as history), kernel .config, built DTBs
 rescue/            Rescue initramfs (init, USB gadget, SSH, SD logger), GRUB menu (FULL DT default, SAFE DT second), SD/ESP scripts
 rescue/tools/      Debug modules: ztdt.c (enable a DT node at runtime), ztsec.c (TZ secure page-table SCM calls by hand)
 docs/research/     Findings (hardware gaps, GPU/camera report, fork analysis, ACPI device map, camera config)
